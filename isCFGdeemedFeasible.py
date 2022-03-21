@@ -231,6 +231,14 @@ def checkCFG():
               'mkdir -p '+os.path.join(args.path_to_XML_Output_Folder, basefilename)+' && ' \
               'java -Xmx'+str(args.memory)+'g -Djava.library.path='+get_processor_info()+' -Dout='+os.path.join(args.path_to_XML_Output_Folder, basefilename)+' -Dquiet=false -Dsolver='+args.solver+' -Dhigherorder=true -Dcmd=0 edu/mit/csail/sdg/alloy4whole/RunAlloy '+path_to_als
         tmp = Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        
+        if tmp.returncode != 0:
+            print("ERROR: ")
+            for err_line in tmp.stderr.readlines():
+                print(err_line)
+            for std_line in tmp.stdout.readlines():
+                print(std_line)
+            sys.exit(tmp.returncode)
 
         global t_OoM
         t_OoM = 0
