@@ -53,14 +53,14 @@ class Scraper:
                     yield os.path.join(root, filename)
         
     def handle_shader(self, amber_filename, glsl_ext, shader_text):
-        assembly_filename = self.TEMPDIR + os.sep + 'temp.spv'
-        disassembly_filename = self.TEMPDIR + os.sep + 'dis.asm'
+        binary_filename = self.TEMPDIR + os.sep + 'temp.spv'
+        assembly_filename = self.TEMPDIR + os.sep + 'dis.asm'
         if glsl_ext is not None:
             tempfilename = self.TEMPDIR + os.sep + 'temp.' + glsl_ext
-            cmd = [self.glslang_path, '-V', '--target-env', 'vulkan1.1', tempfilename, '-o', assembly_filename]
+            cmd = [self.glslang_path, '-V', '--target-env', 'vulkan1.1', tempfilename, '-o', binary_filename]
         else:
             tempfilename = self.TEMPDIR + os.sep + 'temp.asm'
-            cmd = [self.spirv_as_path, tempfilename, '-o', assembly_filename]
+            cmd = [self.spirv_as_path, tempfilename, '-o', binary_filename]
 
         with open(tempfilename, 'w') as outfile:
             outfile.write(shader_text)
@@ -76,19 +76,19 @@ class Scraper:
         # Check that execution was successful.
         assert result.returncode == 0
         
-        with open(assembly_filename, 'rb') as binfile:
+        with open(binary_filename, 'rb') as binfile:
             temp = binfile.read()
             if temp in self.spirv_cache:
                 return
             self.spirv_cache.add(temp)
-            cmd = [self.spirv_dis_path, assembly_filename, '--raw-id', '-o', disassembly_filename]
+            cmd = [self.spirv_dis_path, binary_filename, '--raw-id', '-o', assembly_filename]
             result = subprocess.run(cmd, capture_output=True)
             assert result.returncode == 0
-            asm = open(disassembly_filename, 'r').read()
+            asm = open(assembly_filename, 'r').read()
             pattern = re.compile(r'%(\d+) = OpFunction ')
             for instruction_id in re.findall(pattern, asm):
                 output_file_prefix = os.sep.join([str(self.output_dir), f's{self.example_count:03}'])
-                cmd = [self.spirv_to_alloy_path, assembly_filename, instruction_id, output_file_prefix]
+                cmd = [self.spirv_to_alloy_path, binary_filename, instruction_id, output_file_prefix]
                 result = subprocess.run(cmd, capture_output=True)
 
                 if result.returncode != 0:
@@ -104,9 +104,9 @@ class Scraper:
                 if maybe_cache_entry in self.alloy_cache:
                     continue
                 self.alloy_cache.add(maybe_cache_entry)
-                with open(output_file_prefix + '.als', 'w') as outputalloy:
-                    outputalloy.write('// ' + amber_filename[len(str(self.vk_gl_cts_path)):] + '\n')
-                    outputalloy.write(stdout_string)
+                with open(output_file_prefix + '.als', 'w') as output_file:
+                    output_file.write('// ' + amber_filename[len(str(self.vk_gl_cts_path)):] + '\n')
+                    output_file.write(stdout_string)
                     self.example_count += 1
 
     def doit(self):
