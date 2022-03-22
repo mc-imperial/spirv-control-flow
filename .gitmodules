@@ -1,0 +1,6 @@
+[submodule "spirv-to-alloy/third_party/SPIRV-Headers"]
+	path = spirv-to-alloy/third_party/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
+[submodule "spirv-to-alloy/third_party/SPIRV-Tools/SPIRV-Tools"]
+	path = spirv-to-alloy/third_party/SPIRV-Tools/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
