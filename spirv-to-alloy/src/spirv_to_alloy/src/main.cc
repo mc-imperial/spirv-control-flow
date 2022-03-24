@@ -266,7 +266,7 @@ int main(int argc, const char **argv) {
   std::cout << "  // #blocks:      " << num_blocks << std::endl;
   std::cout << "  // #exit blocks: " << num_exit_blocks << std::endl;
   std::cout << "  // #jumps:       " << num_jump_edges << std::endl;
-  std::cout << "  some disj " + blocks + " : BLOCK {" << std::endl;
+  std::cout << "  some disj " + blocks + " : Block {" << std::endl;
   std::cout << "    EntryPoint = " << entry_point << std::endl;
   std::cout << "    HeaderBlock = " << (headers.empty() ? "none" : headers) << std::endl;
   std::cout << "    LoopHeader = " << (loop_headers.empty() ? "none" : loop_headers) << std::endl;
@@ -288,7 +288,7 @@ int main(int argc, const char **argv) {
   }
   std::cout << "  }" << std::endl;
   std::cout << "}" << std::endl;
-  std::cout << "run { sampleCFG && validCFG/Valid } for " << std::to_string(num_blocks) << " BLOCK";
+  std::cout << "run { sampleCFG && validCFG/Valid } for " << std::to_string(num_blocks) << " Block";
   if (max_switch_targets > 4) {
     std::cout << ", " << max_switch_targets << " seq";
   }
