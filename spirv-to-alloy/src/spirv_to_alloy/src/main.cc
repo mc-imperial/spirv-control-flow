@@ -68,12 +68,24 @@ uint32_t LogBase2(uint32_t arg) {
 
 } // namespace
 
+void print_usage_warning(const char **argv) {
+  std::cerr << "Usage: " << argv[0] << " <spirv-binary> <function-id> <alloy-module-name> [skip-validation]" << std::endl;
+}
+
 int main(int argc, const char **argv) {
 
-  if (argc != 4) {
-    std::cerr << "Usage: " << argv[0] << " <spirv-binary> <function-id> <alloy-module-name>"
-              << std::endl;
+  if (argc < 4 || argc > 5) {
+    print_usage_warning(argv);
     return 1;
+  }
+
+  bool skip_validation = false;
+  if (argc == 5) {
+    if (std::string(argv[4]).compare(std::string("skip-validation")) != 0) {
+      print_usage_warning(argv);
+      return 1;
+    }
+    skip_validation = true;
   }
 
   std::string input_filename(argv[1]);
@@ -288,7 +300,13 @@ int main(int argc, const char **argv) {
   }
   std::cout << "  }" << std::endl;
   std::cout << "}" << std::endl;
-  std::cout << "run { sampleCFG && validCFG/Valid } for " << std::to_string(num_blocks) << " Block";
+
+  std::string validation_check("&& validCFG/Valid ");
+  if (skip_validation) {
+      validation_check = "";
+  }
+
+  std::cout << "run { sampleCFG " << validation_check << "} for " << std::to_string(num_blocks) << " Block";
   if (max_switch_targets > 4) {
     std::cout << ", " << max_switch_targets << " seq";
   }

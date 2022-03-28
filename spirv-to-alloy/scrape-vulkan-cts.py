@@ -35,7 +35,8 @@ class Scraper:
                  glslang_path: Path,
                  spirv_as_path: Path,
                  spirv_dis_path: Path,
-                 spirv_to_alloy_path: Path):
+                 spirv_to_alloy_path: Path,
+                 skip_validation: bool):
         self.output_dir: Path = output_dir
         self.vk_gl_cts_path: Path = vk_gl_cts_path
         self.glslang_path: Path = glslang_path
@@ -45,6 +46,7 @@ class Scraper:
         self.spirv_cache: Set[bytes] = set()
         self.alloy_cache: Set[str] = set()
         self.example_count: int = 0
+        self.skip_validation: bool = skip_validation
 
     def list_amber_files(self):
         for root, folders, files in os.walk(self.vk_gl_cts_path):
@@ -89,6 +91,8 @@ class Scraper:
             for instruction_id in re.findall(pattern, asm):
                 output_file_prefix = os.sep.join([str(self.output_dir), f's{self.example_count:03}'])
                 cmd = [self.spirv_to_alloy_path, binary_filename, instruction_id, output_file_prefix]
+                if self.skip_validation:
+                    cmd += ["skip-validation"]
                 result = subprocess.run(cmd, capture_output=True)
 
                 if result.returncode != 0:
@@ -186,13 +190,17 @@ def main():
     parser.add_argument("spirv_as_path", help="Path to spirv-as.", type=Path)
     parser.add_argument("spirv_dis_path", help="Path to spirv-dis.", type=Path)
     parser.add_argument("spirv_to_alloy_path", help="Path to spirv-to-alloy.", type=Path)
+
+    parser.add_argument("--skip-validation", required=False, default=False, action='store_true',
+        help="This options skips generating the validCFG/Valid check in the resulting .als files.")
     args = parser.parse_args()
     scraper = Scraper(output_dir=args.output_dir,
                       vk_gl_cts_path=args.vk_gl_cts_path,
                       glslang_path=args.glslang_path,
                       spirv_as_path=args.spirv_as_path,
                       spirv_dis_path=args.spirv_dis_path,
-                      spirv_to_alloy_path=args.spirv_to_alloy_path)
+                      spirv_to_alloy_path=args.spirv_to_alloy_path,
+                      skip_validation=args.skip_validation)
     scraper.doit()
 
 
