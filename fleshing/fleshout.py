@@ -24,6 +24,12 @@ from collections import deque
 
 from typing import Dict, List, Set
 
+class NoTerminalNodesInCFGError(Exception):
+
+    def __init__(self, *args):
+        super().__init__("Fleshing requires the CFG to have at least one terminal node.")
+
+
 def get_field_from_instance(instance, label):
     for child in instance:
         if child.tag == 'field' and child.attrib['label'] == label:
@@ -345,7 +351,7 @@ def dijkstra(graph, initial):
 
         if current_node != end:
             continue # No path found
-        
+
         # Work back through destinations in shortest path
         path = []
         while current_node is not None:
@@ -1099,9 +1105,7 @@ def fleshout(xml_file, path_length, path, seed):
     assert instance.tag == "instance"
 
     if not any(block in get_jump_relation(instance) for block in get_all_blocks(instance) ):
-        print('\n\nthere are no terminal nodes in the CFG!\n\n'.upper())
-        return
-
+        raise NoTerminalNodesInCFGError()
 
     cfg = CFG(get_jump_relation(instance),
               get_merge_relation(instance),
@@ -1114,9 +1118,7 @@ def fleshout(xml_file, path_length, path, seed):
               path_length,
               path)
 
-
-    asm = cfg.to_string(seed)
-    return asm
+    return cfg.to_string(seed)
 
     #print(get_doomed_blocks(get_jump_relation(instance)))
 
