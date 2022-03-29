@@ -40,6 +40,7 @@ def run_fleshing(xml_folder, seeds):
                 print(traceback.format_exc())
                 print(test_file)
                 print(seed)
+                break # No point trying a different seed
             except (KeyError, AssertionError):
                 files_with_errors.append(test_file)
                 print(traceback.format_exc())
@@ -69,11 +70,14 @@ def parse_args():
     args = parser.parse_args()
 
     if not args.runner_seed:
-        args.seed = random.randrange(0, sys.maxsize)
+        args.runner_seed = random.randrange(0, sys.maxsize)
     random.seed(args.runner_seed)
 
+    FLESHING_REPEATS = 5
     if not args.fleshing_seeds:
-        args.fleshing_seeds = [random.randrange(0, sys.maxsize)]
+        args.fleshing_seeds = []
+        for _ in range(FLESHING_REPEATS):
+            args.fleshing_seeds.append(random.randrange(0, sys.maxsize))
     return args
 
 def main():
