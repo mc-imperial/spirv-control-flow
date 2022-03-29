@@ -29,6 +29,12 @@ class NoTerminalNodesInCFGError(Exception):
     def __init__(self, *args):
         super().__init__("Fleshing requires the CFG to have at least one terminal node.")
 
+class AllTerminalNodesUnreachableError(Exception):
+
+    def __init__(self, *args):
+        super().__init__("Fleshing requires a CFG to have at least one terminal node that \
+            can be reached from the entry point.")
+
 
 def get_field_from_instance(instance, label):
     for child in instance:
@@ -286,34 +292,34 @@ def random_paths_of_desired_length_without_passing_through_doomed_(graph, start,
                 paths.append(newpath)
     return paths
 
-def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, path):
+def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length):
     graph = jump_relation.copy()
-
-    # Remove doomed blocks so that we won't include them in the random
-    # path. This guarantees we will always be able to reach a terminating
-    # block from any point on the path.
-    #  
-    # I think this can be computed statically, rather than on every invocation.
     doomed = get_doomed_blocks(graph)
-    for k in doomed:
-        try:
-            del graph[k]
-        except KeyError:
-            pass
+    if start in doomed:
+        raise AllTerminalNodesUnreachableError()
 
-    path.append(start)
-    # Q: Is the 'start not in graph' condition necessary because edges to doomed
-    #    nodes aren't removed from non-doomed nodes? Presumably this condition makes
-    #    it harder to maintain an ideal path length?
-    if len(path) == length or start not in graph:
+    non_doomed_graph = {}
+    for node in graph:
+        if node in doomed:
+            continue
+        non_doomed_graph[node] = []
+        for neighbour in graph[node]:
+            if neighbour in doomed:
+                continue
+            non_doomed_graph[node].append(neighbour)
+    return find_random_path(non_doomed_graph, start, length, [])
+
+def find_random_path(graph, src, target_length, path):
+    path.append(src)
+    if len(path) >= target_length:
         return path
-    else:
-        no_doomed = graph[start]
-        no_doomed = list(dict.fromkeys(no_doomed)) # remove any duplicates
-
-        return random_path_of_desired_length_without_passing_through_doomed(graph, random.choice(no_doomed), length, path)
-
-
+    
+    if src not in graph:
+        assert src in get_exit_blocks(graph)
+        return path
+    
+    next_node = random.choice(graph[src])
+    return find_random_path(graph, next_node, target_length, path)
 
 def dijkstra(graph, initial):
     shortest_path = None
@@ -850,10 +856,10 @@ class CFG:
         # version 2:
         rand_path_prefix = random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
                                                                                         self.entry_block,
-                                                                                        self.min_blocks_of_path,
-                                                                                        [])
+                                                                                        self.min_blocks_of_path)
         if rand_path_prefix[-1] not in exit_blocks:
             rand_path_suffix = dijkstra(self.jump_relation, rand_path_prefix[-1])
+            assert rand_path_suffix is not None
             rand_path_prefix += rand_path_suffix[1:]
 
         self.random_path = rand_path_prefix
