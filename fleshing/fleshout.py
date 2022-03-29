@@ -692,7 +692,7 @@ class CFG:
                     return jump[a].count(b)
         return 0
 
-    def is_conditional(self, label: str): # This breaks when a switch has a single jump target
+    def is_conditional(self, label: str):
         num_successors: int = 0 if label not in self.jump_relation else len(self.jump_relation[label])
         return num_successors > 1 or label in self.switch_blocks
 
