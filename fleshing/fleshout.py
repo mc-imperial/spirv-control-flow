@@ -262,12 +262,11 @@ def isReachable(graph, s, d):
     return False
 
 
-# any blocks not reached in the backwards search from terminal blocks are referred to as "doomed"
-# Q: If I understand correctly, a doomed block is a block that no terminal block is reachable from.
-#    It looks like this is doing a reachability check from each src to every exit block rather
-#    than working backwards. As a potential performance improvement, we could work backwards and
-#    determine the union of the set of reachable nodes from each exit block, and then the doomed
-#    nodes are the complement of this and all nodes.
+# A doomed block is a block that no terminal block is reachable from.
+# This code is doing a reachability check from each src to every exit block rather
+# than working backwards. As a potential performance improvement, we could work backwards and
+# determine the union of the set of reachable nodes from each exit block, and then the doomed
+# nodes are the complement of this and all nodes.
 def get_doomed_blocks(graph):
     result: Set[str] = set()
     all_blocks = set(graph.keys()).union(set(x for lst in graph.values() for x in lst))
@@ -296,13 +295,14 @@ def random_paths_of_desired_length_without_passing_through_doomed_(graph, start,
                 paths.append(newpath)
     return paths
 
-# Q: Presumably we avoid doomed blocks because we can never reach a terminator and therefore never
-#    correctly end a program?
 def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, path=[]):
     graph = jump_relation.copy()
 
-    # Q: Shouldn't the set of doomed blocks equal irrespective of where we are in the path?
-    #    We should always be able to reach *some* terminator from any node in the "non-doomed graph".
+    # Remove doomed blocks so that we won't include them in the random
+    # path. This guarantees we will always be able to reach a terminating
+    # block from any point on the path.
+    #  
+    # I think this can be computed statically, rather than on every invocation.
     doomed = get_doomed_blocks(graph)
     for k in doomed:
         try:
@@ -310,9 +310,6 @@ def random_path_of_desired_length_without_passing_through_doomed(jump_relation, 
         except KeyError:
             pass
 
-    #list(map(graph.__delitem__, filter(graph.__contains__, doomed)))
-    #for k in doomed:
-        #graph.pop(k, None)
     path.append(start)
     # Q: Is the 'start not in graph' condition necessary because edges to doomed
     #    nodes aren't removed from non-doomed nodes? Presumably this condition makes
@@ -909,14 +906,13 @@ class CFG:
                                   tab + 'OpDecorate %output_variable Binding ' + str(binding) + '\n'
         conditional_blocks_id2binding['output'] = binding
 
-
         # for every switch find the edge number from the OpSwitch list: if there are parallel edges incident to a switch, then pick one edge randomly
         # compute successors of the block and the number of the edge which leads to the block in the path
-        for sw in self.random_path[:-1]:
+        for idx, sw in enumerate(self.random_path[:-1]):
             if sw in self.switch_blocks:
-                successor_of_sw_index = self.random_path.index(sw) + 1
+                successor_of_sw_index = idx + 1
                 target = self.random_path[successor_of_sw_index]
-                # find the possition of target in self.jump_relation[sw]: if parallel edges,
+                # find the position of target in self.jump_relation[sw]: if parallel edges,
                 # find the random-th occurence in self.jump_relation[sw]
                 parallel = self.jump_relation[sw].count(target)
                 if parallel == 1:
