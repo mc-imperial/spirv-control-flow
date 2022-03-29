@@ -825,10 +825,10 @@ class CFG:
             if any(block not in all_blocks_id for block in self.p):
                 print('\n\nall input blocks should exist in the CFG!\n\n'.upper())
                 sys.exit()
-            if self.id_to_label[args.p[0]] != self.entry_block:
+            if self.id_to_label[self.p[0]] != self.entry_block:
                 print('\n\npath should start from entry block!\n\n'.upper())
                 sys.exit()
-            if self.id_to_label[args.p[-1]] in self.jump_relation:
+            if self.id_to_label[self.p[-1]] in self.jump_relation:
                 print('\n\nthe last block in the path should be terminal!\n\n'.upper())
                 sys.exit()
             if any(self.id_to_label[block] not in self.jump_relation for block in self.p[:-1]):
