@@ -263,6 +263,11 @@ def isReachable(graph, s, d):
 
 
 # any blocks not reached in the backwards search from terminal blocks are referred to as "doomed"
+# Q: If I understand correctly, a doomed block is a block that no terminal block is reachable from.
+#    It looks like this is doing a reachability check from each src to every exit block rather
+#    than working backwards. As a potential performance improvement, we could work backwards and
+#    determine the union of the set of reachable nodes from each exit block, and then the doomed
+#    nodes are the complement of this and all nodes.
 def get_doomed_blocks(graph):
     result: Set[str] = set()
     all_blocks = set(graph.keys()).union(set(x for lst in graph.values() for x in lst))
@@ -291,10 +296,13 @@ def random_paths_of_desired_length_without_passing_through_doomed_(graph, start,
                 paths.append(newpath)
     return paths
 
-
+# Q: Presumably we avoid doomed blocks because we can never reach a terminator and therefore never
+#    correctly end a program?
 def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, path=[]):
     graph = jump_relation.copy()
 
+    # Q: Shouldn't the set of doomed blocks equal irrespective of where we are in the path?
+    #    We should always be able to reach *some* terminator from any node in the "non-doomed graph".
     doomed = get_doomed_blocks(graph)
     for k in doomed:
         try:
@@ -306,6 +314,9 @@ def random_path_of_desired_length_without_passing_through_doomed(jump_relation, 
     #for k in doomed:
         #graph.pop(k, None)
     path.append(start)
+    # Q: Is the 'start not in graph' condition necessary because edges to doomed
+    #    nodes aren't removed from non-doomed nodes? Presumably this condition makes
+    #    it harder to maintain an ideal path length?
     if len(path) == length or start not in graph:
         return path
     else:
@@ -837,13 +848,16 @@ class CFG:
             key=len) if self.p is None else [self.id_to_label[id] for id in self.p]
         '''
 
+        exit_blocks = get_exit_blocks(self.jump_relation)
         # version 2:
         rand_path_prefix = random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
-                                                                                          self.entry_block,
-                                                                                          self.min_blocks_of_path)
-        rand_path_suffix = dijsktra(self.jump_relation, rand_path_prefix[0])
-        self.random_path = rand_path_prefix + rand_path_suffix
+                                                                                        self.entry_block,
+                                                                                        self.min_blocks_of_path)
+        if rand_path_prefix[-1] not in exit_blocks:
+            rand_path_suffix = dijsktra(self.jump_relation, rand_path_prefix[-1])
+            rand_path_prefix += rand_path_suffix[1:]
 
+        self.random_path = rand_path_prefix
 
         self.conditional_blocks_in_random_path = self.get_conditional_blocks_in_random_path()
 
