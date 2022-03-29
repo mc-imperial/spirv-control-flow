@@ -1174,8 +1174,8 @@ def parse_args():
     group = parser.add_mutually_exclusive_group(required=False)
     # Optional Arguments
     group.add_argument('--l', type=int,
-                    help='This is the minimum lenth of the randomly chosen path: '
-                            'the path may be extended minimally to make it terminating'
+                    help='This is the suggested maximum length of the randomly chosen path: '
+                            'the path may be extended minimally to make it terminating.'
                     )
 
     parser.add_argument("--seed", type=int, 
