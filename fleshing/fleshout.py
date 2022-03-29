@@ -275,7 +275,7 @@ def get_doomed_blocks(graph):
 
 # Find a paths of the desired length by doing a random walk that is
 # not allowed to visit a doomed or an exit block proceeding the last block
-def random_paths_of_desired_length_without_passing_through_doomed_(graph, start, length, path=[]):
+def random_paths_of_desired_length_without_passing_through_doomed_(graph, start, length, path, prng):
     path = path + [start]
     if len(path) == length:
         return [path]
@@ -285,14 +285,14 @@ def random_paths_of_desired_length_without_passing_through_doomed_(graph, start,
     for doomed in set(get_doomed_blocks(graph)).union(get_exit_blocks(graph)):
         if doomed in no_doomed:
             no_doomed.remove(doomed)
-    random.shuffle(no_doomed)
+    prng.shuffle(no_doomed)
     for block in no_doomed:
             newpaths = random_paths_of_desired_length_without_passing_through_doomed(graph, block, length, path)
             for newpath in newpaths:
                 paths.append(newpath)
     return paths
 
-def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length):
+def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, prng):
     graph = jump_relation.copy()
     doomed = get_doomed_blocks(graph)
     if start in doomed:
@@ -307,9 +307,9 @@ def random_path_of_desired_length_without_passing_through_doomed(jump_relation, 
             if neighbour in doomed:
                 continue
             non_doomed_graph[node].append(neighbour)
-    return find_random_path(non_doomed_graph, start, length, [])
+    return find_random_path(non_doomed_graph, start, length, [], prng)
 
-def find_random_path(graph, src, target_length, path):
+def find_random_path(graph, src, target_length, path, prng):
     path.append(src)
     if len(path) >= target_length:
         return path
@@ -318,8 +318,8 @@ def find_random_path(graph, src, target_length, path):
         assert src in get_exit_blocks(graph)
         return path
     
-    next_node = random.choice(graph[src])
-    return find_random_path(graph, next_node, target_length, path)
+    next_node = prng.choice(graph[src])
+    return find_random_path(graph, next_node, target_length, path, prng)
 
 def recover_bfs_path(src, dst, parents):
     if src == dst:
@@ -407,7 +407,7 @@ def dijkstra(graph, initial):
 
 
 
-def random_path_quasi_bounded_length(graph, start, length, path=[]):
+def random_path_quasi_bounded_length(graph, start, length, path, prng):
     path = path + [start]
     all_blocks = set(graph.keys()).union(set(x for lst in graph.values() for x in lst))
     if len(path) > length and start not in graph:
@@ -416,16 +416,16 @@ def random_path_quasi_bounded_length(graph, start, length, path=[]):
     if len(path) < length + len(all_blocks) and start in graph:
         adj = graph[start]
         adj = list(dict.fromkeys(adj)) # remove any duplicates
-        random.shuffle(adj)
+        prng.shuffle(adj)
         for node in adj:
-            newpaths = random_path_quasi_bounded_length(graph, node, length, path)
+            newpaths = random_path_quasi_bounded_length(graph, node, length, path, prng)
             for newpath in newpaths:
                 paths.append(newpath)
     return paths
 
 
 
-def random_path_max_length(graph, start, maxlength, path=[]):
+def random_path_max_length(graph, start, maxlength, path, prng):
     path = path + [start]
     if len(path) == maxlength:
         return [path]
@@ -433,7 +433,7 @@ def random_path_max_length(graph, start, maxlength, path=[]):
         return path
     adj = graph[start]
     adj = list(dict.fromkeys(adj)) # remove any duplicates
-    node = random.choice(adj)
+    node = prng.choice(adj)
     newpath = random_path_max_length(graph, node, maxlength, path)
     return newpath
 
@@ -815,7 +815,7 @@ class CFG:
         return result + "\n"
 
 
-    def to_string(self, seed) -> str:
+    def to_string(self, prng, seed) -> str:
 
         result = """               OpCapability Shader
                OpMemoryModel Logical GLSL450
@@ -890,7 +890,8 @@ class CFG:
         # version 2:
         rand_path_prefix = random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
                                                                                         self.entry_block,
-                                                                                        self.min_blocks_of_path)
+                                                                                        self.min_blocks_of_path,
+                                                                                        prng)
         if rand_path_prefix[-1] not in exit_blocks:
             rand_path_suffix = find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], exit_blocks)
             assert rand_path_suffix is not None
@@ -962,7 +963,7 @@ class CFG:
                     self.switch2edges[sw].append(literal_of_target)
                 else:
                     parallel_indices = [i for i, x in enumerate(self.jump_relation[sw]) if x == target]
-                    literal_of_target = random.choice(parallel_indices)
+                    literal_of_target = prng.choice(parallel_indices)
                     self.switch2edges[sw].append(literal_of_target)
 
                 new_constants.add(literal_of_target)
@@ -1135,8 +1136,11 @@ SHADER compute compute_shader SPIRV-ASM
 
         return result, result_fleshed
 
-
-def fleshout(xml_file, path_length, path, seed):
+def fleshout(xml_file, path_length, path, seed=None):
+    rng = random.Random()
+    if seed is None:
+        seed = random.randrange(0, sys.maxsize)
+    rng.seed(seed)
 
     tree = elementTree.parse(xml_file)
 
@@ -1160,7 +1164,7 @@ def fleshout(xml_file, path_length, path, seed):
               path_length,
               path)
 
-    return cfg.to_string(seed)
+    return cfg.to_string(rng, seed)
 
     #print(get_doomed_blocks(get_jump_relation(instance)))
 
@@ -1210,7 +1214,6 @@ def parse_args():
 
     if not args.seed:
         args.seed = random.randrange(0, sys.maxsize)
-    random.seed(args.seed)
     return args
 
 def main():

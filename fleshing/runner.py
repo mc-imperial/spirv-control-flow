@@ -71,7 +71,6 @@ def parse_args():
 
     if not args.runner_seed:
         args.runner_seed = random.randrange(0, sys.maxsize)
-    random.seed(args.runner_seed)
 
     FLESHING_REPEATS = 5
     if not args.fleshing_seeds:
