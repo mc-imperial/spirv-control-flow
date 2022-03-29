@@ -92,6 +92,8 @@ def get_regular_blocks(instance) -> Set[str]:
     result: Set[str] = set()
     for child in get_sig_from_instance(instance, 'Block'):
         result.add(child.attrib['label'])
+    for child in get_sig_from_instance(instance, 'BLOCK'):
+        result.add(child.attrib['label'])
     return result
 
 
