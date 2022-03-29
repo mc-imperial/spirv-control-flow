@@ -1,0 +1,213 @@
+<alloy builddate="unknown">
+
+<instance maxseq="11" command="Run run$1 for 5 int, 11 seq, 18 Block" noOverflow="false" filename="">
+
+<intscope bitwidth="5">
+  <atoms kind="AtomRange">
+    <start val="-16"/>
+    <end val="15"/>
+    <inc val="1"/>
+  </atoms>
+</intscope>
+<sig label="seq/Int" ID="0" parentID="1" builtin="yes">
+</sig>
+
+<sig label="Int" ID="1" parentID="2" builtin="yes">
+</sig>
+
+<sig label="String" ID="3" parentID="2" builtin="yes">
+</sig>
+
+<sig label="LoopHeader" ID="4" parentID="5">
+   <atom label="LoopHeader$0"/>
+</sig>
+
+<field label="continue" ID="6" parentID="4">
+   <tuple> <atom label="LoopHeader$0"/> <atom label="Block$7"/> </tuple>
+   <types> <type ID="4"/> <type ID="7"/> </types>
+</field>
+
+<sig label="SelectionHeader" ID="8" parentID="5">
+   <atom label="SelectionHeader$0"/>
+   <atom label="SelectionHeader$1"/>
+   <atom label="SelectionHeader$2"/>
+   <atom label="SelectionHeader$3"/>
+   <atom label="SelectionHeader$4"/>
+</sig>
+
+<sig label="HeaderBlock" ID="5" parentID="7">
+</sig>
+
+<field label="merge" ID="9" parentID="5">
+   <tuple> <atom label="SelectionHeader$0"/> <atom label="SelectionHeader$4"/> </tuple>
+   <tuple> <atom label="SelectionHeader$1"/> <atom label="Block$1"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="Block$8"/> </tuple>
+   <tuple> <atom label="LoopHeader$0"/> <atom label="SelectionHeader$3"/> </tuple>
+   <tuple> <atom label="SelectionHeader$3"/> <atom label="Block$4"/> </tuple>
+   <tuple> <atom label="SelectionHeader$4"/> <atom label="Block$9"/> </tuple>
+   <types> <type ID="5"/> <type ID="7"/> </types>
+</field>
+
+<sig label="Block" ID="7" parentID="2">
+   <atom label="Block$0"/>
+   <atom label="Block$1"/>
+   <atom label="Block$2"/>
+   <atom label="Block$3"/>
+   <atom label="Block$4"/>
+   <atom label="Block$5"/>
+   <atom label="Block$6"/>
+   <atom label="Block$7"/>
+   <atom label="Block$8"/>
+   <atom label="Block$9"/>
+   <atom label="Block$10"/>
+   <atom label="Block$11"/>
+</sig>
+
+<field label="jump" ID="10" parentID="7">
+   <tuple> <atom label="Block$0"/> <atom label="0"/> <atom label="SelectionHeader$4"/> </tuple>
+   <tuple> <atom label="SelectionHeader$0"/> <atom label="0"/> <atom label="Block$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$0"/> <atom label="1"/> <atom label="SelectionHeader$4"/> </tuple>
+   <tuple> <atom label="Block$1"/> <atom label="0"/> <atom label="Block$8"/> </tuple>
+   <tuple> <atom label="Block$2"/> <atom label="0"/> <atom label="Block$1"/> </tuple>
+   <tuple> <atom label="SelectionHeader$1"/> <atom label="0"/> <atom label="Block$2"/> </tuple>
+   <tuple> <atom label="SelectionHeader$1"/> <atom label="1"/> <atom label="Block$1"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="10"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="0"/> <atom label="SelectionHeader$1"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="1"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="2"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="3"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="4"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="5"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="6"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="7"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="8"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="SelectionHeader$2"/> <atom label="9"/> <atom label="SelectionHeader$0"/> </tuple>
+   <tuple> <atom label="Block$3"/> <atom label="0"/> <atom label="SelectionHeader$2"/> </tuple>
+   <tuple> <atom label="Block$3"/> <atom label="1"/> <atom label="SelectionHeader$3"/> </tuple>
+   <tuple> <atom label="LoopHeader$0"/> <atom label="0"/> <atom label="Block$3"/> </tuple>
+   <tuple> <atom label="Block$5"/> <atom label="0"/> <atom label="Block$4"/> </tuple>
+   <tuple> <atom label="Block$6"/> <atom label="0"/> <atom label="Block$4"/> </tuple>
+   <tuple> <atom label="SelectionHeader$3"/> <atom label="0"/> <atom label="Block$6"/> </tuple>
+   <tuple> <atom label="SelectionHeader$3"/> <atom label="1"/> <atom label="Block$5"/> </tuple>
+   <tuple> <atom label="Block$7"/> <atom label="0"/> <atom label="LoopHeader$0"/> </tuple>
+   <tuple> <atom label="Block$8"/> <atom label="0"/> <atom label="Block$7"/> </tuple>
+   <tuple> <atom label="Block$9"/> <atom label="0"/> <atom label="Block$8"/> </tuple>
+   <tuple> <atom label="Block$10"/> <atom label="0"/> <atom label="Block$9"/> </tuple>
+   <tuple> <atom label="SelectionHeader$4"/> <atom label="0"/> <atom label="Block$10"/> </tuple>
+   <tuple> <atom label="SelectionHeader$4"/> <atom label="1"/> <atom label="Block$9"/> </tuple>
+   <tuple> <atom label="Block$11"/> <atom label="0"/> <atom label="LoopHeader$0"/> </tuple>
+   <types> <type ID="7"/> <type ID="0"/> <type ID="7"/> </types>
+</field>
+
+<sig label="univ" ID="2" builtin="yes">
+</sig>
+
+<sig label="integer/Bit" ID="11">
+   <atom label="-1"/>
+   <atom label="0"/>
+   <type ID="1"/>
+</sig>
+
+<sig label="EntryPoint" ID="12" one="yes">
+   <atom label="Block$11"/>
+   <type ID="7"/>
+</sig>
+
+<sig label="SwitchBlock" ID="13">
+   <atom label="SelectionHeader$2"/>
+   <type ID="8"/>
+</sig>
+
+<skolem label="$sampleCFG_b1" ID="14">
+   <tuple> <atom label="Block$11"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b2" ID="15">
+   <tuple> <atom label="LoopHeader$0"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b3" ID="16">
+   <tuple> <atom label="Block$3"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b4" ID="17">
+   <tuple> <atom label="SelectionHeader$2"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b5" ID="18">
+   <tuple> <atom label="SelectionHeader$1"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b6" ID="19">
+   <tuple> <atom label="Block$2"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b7" ID="20">
+   <tuple> <atom label="Block$1"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b8" ID="21">
+   <tuple> <atom label="SelectionHeader$0"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b9" ID="22">
+   <tuple> <atom label="Block$0"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b10" ID="23">
+   <tuple> <atom label="SelectionHeader$4"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b11" ID="24">
+   <tuple> <atom label="Block$10"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b12" ID="25">
+   <tuple> <atom label="Block$9"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b13" ID="26">
+   <tuple> <atom label="Block$8"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b14" ID="27">
+   <tuple> <atom label="Block$7"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b15" ID="28">
+   <tuple> <atom label="SelectionHeader$3"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b16" ID="29">
+   <tuple> <atom label="Block$6"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b17" ID="30">
+   <tuple> <atom label="Block$5"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+<skolem label="$sampleCFG_b18" ID="31">
+   <tuple> <atom label="Block$4"/> </tuple>
+   <types> <type ID="7"/> </types>
+</skolem>
+
+</instance>
+
+</alloy>
