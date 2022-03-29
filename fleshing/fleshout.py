@@ -225,11 +225,16 @@ def isReachable(graph, s, d):
 
         # Dequeue a vertex from queue
         n = queue.pop(0)
-
         # If this adjacent node is the destination node,
         # then return true
         if n == d:
             return True
+
+        if n not in graph:
+            # n could be an exit block or a doomed block without
+            # neighbours (I think), so it won't appear in the graph which
+            # is built from the jump relation.
+            continue
 
         #  Else, continue to do BFS
         for i in graph[n]:
