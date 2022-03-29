@@ -18,7 +18,7 @@ import xml.etree.ElementTree as elementTree
 import argparse
 from collections import deque
 
-from typing import Dict, List, Set
+from typing import Deque, Dict, List, Set
 
 class NoTerminalNodesInCFGError(Exception):
 
@@ -623,22 +623,22 @@ class CFG:
                 in_degree[successor] += 1
 
         # Start with all nodes with zero in-degree
-        queue: List[str] = []
+        queue: Deque[str] = Deque()
 
         # Entry block must apppear as the first block else variable definitions appear 
         # after other blocks which is not allowed
-        queue.append(self.entry_block)
+        queue.appendleft(self.entry_block)
         
         for block in in_degree:
             if in_degree[block] == 0 and block != self.entry_block:
-                queue.append(block)
+                queue.appendleft(block)
 
         # Pop blocks from the queue, adding them to the sorted order and decreasing the
         # in-degrees of their successors. A successor who's in-degree becomes zero
         # gets added to the queue.
 
         while len(queue) > 0:
-            block: str = queue.pop(0)
+            block: str = queue.pop()
             result.append(block)
             if block in self.structured_jump_relation:
                 for successor in self.structured_jump_relation[block]:
@@ -647,7 +647,7 @@ class CFG:
                     assert in_degree[successor] > 0
                     in_degree[successor] -= 1
                     if in_degree[successor] == 0:
-                        queue.append(successor)
+                        queue.appendleft(successor)
 
         assert len(result) == len(in_degree)
         return result
