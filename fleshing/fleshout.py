@@ -685,9 +685,9 @@ class CFG:
                     return jump[a].count(b)
         return 0
 
-    def is_conditional(self, label: str):
+    def is_conditional(self, label: str): # This breaks when a switch has a single jump target
         num_successors: int = 0 if label not in self.jump_relation else len(self.jump_relation[label])
-        return num_successors > 1
+        return num_successors > 1 or label in self.switch_blocks
 
 
     # find the nodes which have OpBranchConditional or OpSwitch as their terminators
@@ -793,10 +793,10 @@ class CFG:
             result += "               OpSelectionMerge %{0} None\n".format(
                 self.get_block_id(self.merge_relation[label]))
         else:
-            assert num_successors <= 2
+            assert num_successors <= 2 # Q: How can a non loop/selection header block have multiple successors? Aren't OpLoopMerge and OpSelectionMerge the only merge instructions?
         if label not in self.jump_relation:
             assert num_successors == 0
-            result += "               OpReturn"
+            result += "               OpReturn" # Exit nodes are defined as having no successors. Can we use an alternative to OpReturn in some cases to make fleshing more interesting?
         elif label not in self.switch_blocks:
             assert num_successors == 1 or num_successors == 2
             if num_successors == 1:
