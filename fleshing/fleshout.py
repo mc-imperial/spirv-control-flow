@@ -1163,6 +1163,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    print(f"Fleshing with seed {args.seed}")
     asm = fleshout(args.xml, args.l, args.p, args.seed)
     print('\n')
     print(asm[0])
