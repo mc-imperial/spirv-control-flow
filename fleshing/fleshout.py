@@ -307,7 +307,7 @@ def random_path_of_desired_length_without_passing_through_doomed(jump_relation, 
 
 
 
-def dijsktra(graph, initial):
+def dijkstra(graph, initial):
     for end in get_exit_blocks(graph):
 
         # shortest paths is a dict of nodes
@@ -318,7 +318,11 @@ def dijsktra(graph, initial):
 
         while current_node != end:
             visited.add(current_node)
-            destinations = graph[current_node]
+
+            if current_node not in graph:
+                destinations = []
+            else:
+                destinations = graph[current_node]
             weight_to_current_node = 1
 
             for next_node in destinations:
@@ -835,7 +839,7 @@ class CFG:
                                                                                         self.min_blocks_of_path,
                                                                                         [])
         if rand_path_prefix[-1] not in exit_blocks:
-            rand_path_suffix = dijsktra(self.jump_relation, rand_path_prefix[-1])
+            rand_path_suffix = dijkstra(self.jump_relation, rand_path_prefix[-1])
             rand_path_prefix += rand_path_suffix[1:]
 
         self.random_path = rand_path_prefix
@@ -1119,7 +1123,7 @@ def fleshout(xml_file, path_length, path, seed):
     print('\n\nRandom path - Ally/John variant')
     start_time = time.time()
     random_path_prefix = random_path_of_desired_length_without_passing_through_doomed(get_jump_relation(instance), get_entry_block(instance), 200)
-    random_path_suffix = dijsktra(get_jump_relation(instance), random_path_prefix[0])
+    random_path_suffix = dijkstra(get_jump_relation(instance), random_path_prefix[0])
     rand_path = random_path_prefix[:-1]  +  random_path_suffix
     print(  rand_path   )
 
