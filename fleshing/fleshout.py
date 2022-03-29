@@ -310,6 +310,7 @@ def random_path_of_desired_length_without_passing_through_doomed(jump_relation, 
 
 
 def dijkstra(graph, initial):
+    shortest_path = None
     for end in get_exit_blocks(graph):
 
         # shortest paths is a dict of nodes
@@ -338,10 +339,13 @@ def dijkstra(graph, initial):
 
             next_destinations = {node: shortest_paths[node] for node in shortest_paths if node not in visited}
             if not next_destinations:
-                return "Route Not Possible"
+                break
             # next node is the destination with the lowest weight
             current_node = min(next_destinations, key=lambda k: next_destinations[k][1])
 
+        if current_node != end:
+            continue # No path found
+        
         # Work back through destinations in shortest path
         path = []
         while current_node is not None:
@@ -350,7 +354,9 @@ def dijkstra(graph, initial):
             current_node = next_node
         # Reverse path
         path = path[::-1]
-    return path
+        if shortest_path is None or len(path) < len(shortest_path):
+            shortest_path = path
+    return shortest_path
 
 
 
