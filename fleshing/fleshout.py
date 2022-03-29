@@ -273,7 +273,7 @@ def random_paths_of_desired_length_without_passing_through_doomed_(graph, start,
                 paths.append(newpath)
     return paths
 
-def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, path=[]):
+def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, path):
     graph = jump_relation.copy()
 
     # Remove doomed blocks so that we won't include them in the random
@@ -827,7 +827,8 @@ class CFG:
         # version 2:
         rand_path_prefix = random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
                                                                                         self.entry_block,
-                                                                                        self.min_blocks_of_path)
+                                                                                        self.min_blocks_of_path,
+                                                                                        [])
         if rand_path_prefix[-1] not in exit_blocks:
             rand_path_suffix = dijsktra(self.jump_relation, rand_path_prefix[-1])
             rand_path_prefix += rand_path_suffix[1:]
