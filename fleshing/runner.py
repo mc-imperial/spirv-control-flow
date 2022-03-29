@@ -7,14 +7,6 @@ import traceback
 
 from argparse import ArgumentParser
 
-# Design:
-# 1. Takes as input a folder of xml files that we want to flesh
-# 2. For each xml file, generate N random which will result in N amber files being generated.
-#    The amber files will be stored in /tests/amber which will be cleaned and recreated before each test.
-#    Each amber file resulting from the same xml file will be stored in a folder with the name of the parent
-#    folder of the xml file.
-# 3. Once amber files are being correctly generated, we should execute the amber files and check that the
-#    execution is succesful, with the assumption that fleshing is correct if there are no errors.
 
 def get_test_folders(xml_folder):
     return [test_folder for test_folder in next(os.walk(xml_folder))[1]]
