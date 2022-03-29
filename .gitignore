@@ -1,0 +1,4 @@
+.scrapertemp/
+__pycache__/
+*.log
+spirv-to-alloy/build/
