@@ -53,8 +53,8 @@ def run_fleshing(amber_path, xml_folder, seeds):
                 print(seed)
 
     print(f"Found {len(files_without_terminal_nodes)} CFGs without a terminal node")
-    print(f"Found {len(files_with_errors)} errors when fleshing")
-    print(f"Found {len(amber_errors)} errors when fleshing")
+    print(f"Found {len(files_with_errors)} errors when generating amber files")
+    print(f"Found {len(amber_errors)} errors when executing amber files")
 
 def execute_amber(amber_path, amber_file_path):
     cmd = [amber_path, "-d", amber_file_path]
