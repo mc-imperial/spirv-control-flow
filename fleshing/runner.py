@@ -75,18 +75,24 @@ def parse_args():
                         'fleshing run, however it does not affect the seeds used when fleshing individual files. To '
                         'guarantee reproducibility the seed should be paired with the exact same fleshing seeds.')
 
-    parser.add_argument("--fleshing-seeds", nargs="+", type=int, 
+    seeds_or_repeat_group = parser.add_mutually_exclusive_group(required=False)
+
+    seeds_or_repeat_group.add_argument("--fleshing-seeds", nargs="+", type=int, 
                         help='The seeds used for fleshing. These can be used to reproduce the same paths in the flesher.')
+    
+    seeds_or_repeat_group.add_argument("--repeats", type=int, help='The number of times fleshing is run per xml file.')
 
     args = parser.parse_args()
 
     if not args.runner_seed:
         args.runner_seed = random.randrange(0, sys.maxsize)
 
-    FLESHING_REPEATS = 5
-    if not args.fleshing_seeds:
+    if args.fleshing_seeds is None and args.repeats is None:
+        args.repeats = 1
+
+    if args.fleshing_seeds is None:
         args.fleshing_seeds = []
-        for _ in range(FLESHING_REPEATS):
+        for _ in range(args.repeats):
             args.fleshing_seeds.append(random.randrange(0, sys.maxsize))
     return args
 
