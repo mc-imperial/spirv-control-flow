@@ -560,8 +560,7 @@ class CFG:
                  loop_header_blocks: Set[str],
                  selection_header_blocks: Set[str],
                  switch_blocks: Set[str],
-                 l: int,
-                 p: List[int]):
+                 l: int):
         self.jump_relation = jump_relation
         self.merge_relation = merge_relation
         self.continue_relation = continue_relation
@@ -571,7 +570,6 @@ class CFG:
         self.selection_header_blocks = selection_header_blocks
         self.switch_blocks = switch_blocks
         self.l = l
-        self.p = p
         self.all_blocks = {*self.regular_blocks, *self.loop_header_blocks, *self.selection_header_blocks}
         self.min_blocks_of_path = self.get_min_blocks_of_path()
         self.label_to_id: Dict[str, int] = {}
@@ -676,10 +674,8 @@ class CFG:
         return result
 
     def get_min_blocks_of_path(self):
-        if self.l is not None and self.p is None:
+        if self.l is not None:
             return self.l
-        elif self.l is None and self.p is not None:
-            return len(self.p)
         else:
             return round(len(self.all_blocks)*1.5)
 
@@ -867,31 +863,6 @@ class CFG:
         for block in self.all_blocks:
             all_blocks_id.append(self.label_to_id[block])
         all_blocks_id.sort()
-
-        if self.p is not None:
-            if any(block not in all_blocks_id for block in self.p):
-                print('\n\nall input blocks should exist in the CFG!\n\n'.upper())
-                sys.exit()
-            if self.id_to_label[self.p[0]] != self.entry_block:
-                print('\n\npath should start from entry block!\n\n'.upper())
-                sys.exit()
-            if self.id_to_label[self.p[-1]] in self.jump_relation:
-                print('\n\nthe last block in the path should be terminal!\n\n'.upper())
-                sys.exit()
-            if any(self.id_to_label[block] not in self.jump_relation for block in self.p[:-1]):
-                print(
-                    '\n\nterminal blocks can appear only in the end of the path!\n\n'.upper())
-                sys.exit()
-            if not all(self.id_to_label[self.p[k+1]] in self.jump_relation[self.id_to_label[self.p[k]]] for k in range(len(self.p)-1) ):
-                print('\n\nThe path should be a sequence of blocks such that each block is adjacent to the one next to it!\n\n'.upper())
-                sys.exit()
-
-        # version 1: less optimised
-        '''
-        self.random_path = min(
-            random_path_quasi_bounded_length(self.jump_relation, self.entry_block, self.min_blocks_of_path),
-            key=len) if self.p is None else [self.id_to_label[id] for id in self.p]
-        '''
 
         exit_blocks = get_exit_blocks(self.jump_relation)
         # version 2:
@@ -1143,7 +1114,7 @@ SHADER compute compute_shader SPIRV-ASM
 
         return result, result_fleshed
 
-def fleshout(xml_file, path_length, path, seed=None):
+def fleshout(xml_file, path_length=None, seed=None):
     rng = random.Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1168,8 +1139,7 @@ def fleshout(xml_file, path_length, path, seed=None):
               get_loop_header_blocks(instance),
               get_selection_header_blocks(instance),
               get_switch_blocks(instance),
-              path_length,
-              path)
+              path_length)
 
     return cfg.to_string(rng, seed)
 
@@ -1208,13 +1178,9 @@ def parse_args():
                             'the path may be extended minimally to make it terminating'
                     )
 
-    group.add_argument('--p', type=int, nargs='+',
-                    help='A user-input path'
-                    )
-
     parser.add_argument("--seed", type=int, 
                         help='The seed to use for the PNG. This can be used to reproduce paths. '
-                        'To guarantee reproducibility the seed should be paired with the exact same'
+                        'To guarantee reproducibility the seed should be paired with the exact same '
                         'path length argument.')
 
     args = parser.parse_args()
@@ -1226,7 +1192,7 @@ def parse_args():
 def main():
     args = parse_args()
     print(f"Fleshing with seed {args.seed}")
-    asm = fleshout(args.xml, args.l, args.p, args.seed)
+    asm = fleshout(args.xml, path_length=args.l, seed=args.seed)
     print('\n')
     print(asm[0])
 

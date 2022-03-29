@@ -25,7 +25,7 @@ def run_fleshing(amber_path, xml_folder, seeds):
         for seed in seeds:
             print(f"Fleshing {test_file} with seed {seed}")
             try:
-                _, amber_program_str = fleshout.fleshout(test_file, None, None, seed)
+                _, amber_program_str = fleshout.fleshout(test_file, path_length=None, seed=seed)
                 amber_file_path = test_file.replace(".xml", f"_{seed}") + ".amber"
                 with open(amber_file_path, 'w') as amber_file:
                     amber_file.write(amber_program_str)
