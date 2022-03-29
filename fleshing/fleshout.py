@@ -13,13 +13,9 @@
 # limitations under the License.
 
 import sys
-import os, subprocess
-import re
 import random
 import xml.etree.ElementTree as elementTree
 import argparse
-import time
-from argparse import ArgumentParser, SUPPRESS
 from collections import deque
 
 from typing import Dict, List, Set
@@ -35,6 +31,11 @@ class AllTerminalNodesUnreachableError(Exception):
         super().__init__("Fleshing requires a CFG to have at least one terminal node that \
             can be reached from the entry point.")
 
+class TerminalNodesUnreachableFromCurrentNodeError(Exception):
+
+    def __init__(self, node, terminal_nodes):
+        super().__init__(f"No terminal node could be found starting at node {node}.\n \
+            The terminal nodes are {terminal_nodes}") 
 
 def get_field_from_instance(instance, label):
     for child in instance:
@@ -222,7 +223,6 @@ def get_exit_blocks(graph) -> Set[str]:
 # determine if a destination vertex is reachable from the source or not
 def isReachable(graph, s, d):
     all_blocks = set(graph.keys()).union(set(x for lst in graph.values() for x in lst))
-    V = len(all_blocks)
     # Mark all the vertices as not visited
     visited = {}
     for block in all_blocks:
@@ -320,6 +320,40 @@ def find_random_path(graph, src, target_length, path):
     
     next_node = random.choice(graph[src])
     return find_random_path(graph, next_node, target_length, path)
+
+def recover_bfs_path(src, dst, parents):
+    if src == dst:
+        return [dst]
+    
+    path = []
+    while parents[dst] is not None:
+        path.append(dst)
+        dst = parents[dst]
+    path.append(src)
+    return path[::-1]
+
+def find_path_to_exit_node(graph, src, exit_nodes):
+    # BFS where termination condition is reaching an exit node.
+    # Since the graph is unweighted this will also give us the
+    # shortest path to an exit node.
+    parents = {}
+    parents[src] = None
+    queue = deque()
+    queue.append(src)
+    while queue:
+        n = queue.popleft()
+
+        if n in exit_nodes:
+            return recover_bfs_path(src, n, parents) 
+
+        if n not in graph:
+            raise TerminalNodesUnreachableFromCurrentNodeError(n, exit_nodes)
+
+        for neighbour in graph[n]:
+            if neighbour not in parents:
+                queue.append(neighbour)
+                parents[neighbour] = n
+    raise TerminalNodesUnreachableFromCurrentNodeError(src, exit_nodes)
 
 def dijkstra(graph, initial):
     shortest_path = None
@@ -858,7 +892,7 @@ class CFG:
                                                                                         self.entry_block,
                                                                                         self.min_blocks_of_path)
         if rand_path_prefix[-1] not in exit_blocks:
-            rand_path_suffix = dijkstra(self.jump_relation, rand_path_prefix[-1])
+            rand_path_suffix = find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], exit_blocks)
             assert rand_path_suffix is not None
             rand_path_prefix += rand_path_suffix[1:]
 
