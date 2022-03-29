@@ -43,8 +43,18 @@ group.add_argument('--p', type=int, nargs='+',
                    help='A user-input path'
                    )
 
+parser.add_argument("--seed", type=int, 
+                    help='The seed to use for the PNG. This can be used to reproduce paths. '
+                    'To guarantee reproducibility the seed should be paired with the exact same'
+                    'path length argument.')
+
 args = parser.parse_args()
 
+if args.seed:
+    seed = args.seed
+else:
+    seed = random.randrange(0, sys.maxsize)
+random.seed(seed)
 
 def get_field_from_instance(instance, label):
     for child in instance:
@@ -1033,6 +1043,7 @@ SHADER compute compute_shader SPIRV-ASM
 ; {8} CFG nodes have OpBranchConditional or OpSwitch as their terminators (denoted <n>): {9}.
 ;
 ; To follow this path, we need to make these decisions each time we reach {10}.
+; This path was generated with the seed {14} and has length {15}.
 ;
 ; We equip the shader with {8}+1 storage buffers:
 ; - An input storage buffer with the directions for each node {10}
@@ -1081,7 +1092,9 @@ SHADER compute compute_shader SPIRV-ASM
                    ' or '.join(filter(None, [', '.join(conditional_blocks_id2string[:-1])] + conditional_blocks_id2string[-1:])),  # {10}
                    types_variables, # {11}
                    constants2string, # {12}
-                   storage_buffers) # {13}
+                   storage_buffers, # {13}
+                   seed, # {14}
+                   len(self.random_path)) # {15}
         result_fleshed += "\n".join([self.block_to_string_fleshing(block) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
