@@ -932,7 +932,9 @@ class CFG:
             constants2string += tab + '%constant_' + str(i) + ' = OpConstant %' + str(self.UINT_TYPE_ID) + ' ' + str(i) + '\n'
 
         path2string = ''
-        occurrence = 0
+        occurrences = {}
+        for block in self.switch_blocks:
+            occurrences[block] = 0
         # add the literal_of_target to the
         for block in self.random_path[:-1]:
             block_id = self.label_to_id[block]
@@ -944,8 +946,8 @@ class CFG:
             if block not in self.switch_blocks:
                 path2string += b + ' -> '
             else:
-                path2string += b + ' -> ' + 'edge_' + str(self.switch2edges[block][occurrence]) + ' -> '
-                occurrence += 1
+                path2string += b + ' -> ' + 'edge_' + str(self.switch2edges[block][occurrences[block]]) + ' -> '
+                occurrences[block] += 1
         path2string += str(self.label_to_id[self.random_path[-1]])
 
 
