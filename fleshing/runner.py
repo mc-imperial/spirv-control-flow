@@ -28,20 +28,23 @@ def run_fleshing(xml_folder, seeds):
         if not os.path.isfile(test_file):
             print(f"Skipping {test_file} as it doesn't exist")
             continue
-        print(f"Fleshing {test_file}")
 
         for seed in seeds:
+            print(f"Fleshing {test_file} with seed {seed}")
             try:
                 _, amber = fleshout.fleshout(test_file, None, None, seed)
                 print(amber)
             
             except fleshout.NoTerminalNodesInCFGError:
                 files_without_terminal_nodes.append(test_file)
-            except (KeyError, AssertionError):
-                files_with_errors.append(test_file)
-            finally:
                 print(traceback.format_exc())
                 print(test_file)
+                print(seed)
+            except (KeyError, AssertionError):
+                files_with_errors.append(test_file)
+                print(traceback.format_exc())
+                print(test_file)
+                print(seed)
 
     print(f"Found {len(files_without_terminal_nodes)} CFGs without a terminal node")
     print(f"Found {len(files_with_errors)} errors when fleshing")
@@ -55,23 +58,32 @@ def parse_args():
                             The xml skeletons should be in a file called test_0.xml and folder \
                             containing the xml file should be the name of the skeleton.')
 
-    parser.add_argument("--seed", type=int, 
-                        help='The seed to use for the PNG. This can be used to reproduce paths. '
-                        'To guarantee reproducibility the seed should be paired with the exact same'
-                        'path length argument.')
+    parser.add_argument("--runner-seed", type=int, 
+                        help='The seed to use for the PNG in the runner. This can be used to reproduce a particular '
+                        'fleshing run, however it does not affect the seeds used when fleshing individual files. To '
+                        'guarantee reproducibility the seed should be paired with the exact same fleshing seeds.')
+
+    parser.add_argument("--fleshing-seeds", nargs="+", type=int, 
+                        help='The seeds when fleshing. These can be used to reproduce the same paths in the flesher.')
+
     args = parser.parse_args()
 
-    if not args.seed:
+    if not args.runner_seed:
         args.seed = random.randrange(0, sys.maxsize)
-    random.seed(args.seed)
+    random.seed(args.runner_seed)
+
+    if not args.fleshing_seeds:
+        args.fleshing_seeds = [random.randrange(0, sys.maxsize)]
     return args
 
 def main():
     args = parse_args()
     xml_folder = os.path.join(os.getcwd(), args.xml_folder)
-    print(f"Running fleshing with input folder {xml_folder} and seed: {args.seed}")
-    run_fleshing(xml_folder, [args.seed])
-    print(f"seed: {args.seed}")
+    print(f"Running fleshing with input folder {xml_folder}, ' \
+        runner seed: {args.runner_seed} and fleshing seeds: {args.fleshing_seeds}")
+    run_fleshing(xml_folder, args.fleshing_seeds)
+    print(f"runner seed: {args.runner_seed}")
+    print(f"fleshing seeds: {args.fleshing_seeds}")
 
 if __name__ == "__main__":
     main()
