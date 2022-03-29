@@ -624,8 +624,13 @@ class CFG:
 
         # Start with all nodes with zero in-degree
         queue: List[str] = []
+
+        # Entry block must apppear as the first block else variable definitions appear 
+        # after other blocks which is not allowed
+        queue.append(self.entry_block)
+        
         for block in in_degree:
-            if in_degree[block] == 0:
+            if in_degree[block] == 0 and block != self.entry_block:
                 queue.append(block)
 
         # Pop blocks from the queue, adding them to the sorted order and decreasing the
