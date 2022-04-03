@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # Copyright 2022 The SPIRV-Control Flow Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This scripts copies all needed .so files into a MESA_VERSION specific lib directory
-echo "Copying from $MESA_WORK_DIR/$MESA_VERSION-install and $MESA_WORK_DIR/drm-install into $MESA_VERSION-all-libs"
-mkdir -p $MESA_WORK_DIR/$MESA_VERSION-all-libs
-for f in `find $MESA_WORK_DIR/$MESA_VERSION-install $MESA_WORK_DIR/drm-install -name "*.so"`
-do
-  cp $f $MESA_WORK_DIR/$MESA_VERSION-all-libs
-done
+class AmberResult:
+
+    def __init__(self, filename, return_code, stdout, stderr):
+        self.filename = filename
+        self.return_code = return_code
+        self.stdout = stdout
+        self.stderr = stderr
+    
+    def __str__(self):
+        success_str = "Success" if self.return_code == 0 else "Failure"
+        ret = f"{success_str}: {self.filename}"
+        ret += self.stdout
+        ret += self.stderr
+        return ret
