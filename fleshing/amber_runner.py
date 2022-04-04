@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def execute_amber_on_host(amber_path: Path, amber_file_path: Path) -> AmberResult:
-    cmd = [amber_path, "-t", "spv1.3", "-v", "1.1", amber_file_path]
+    cmd = [amber_path, "-d", "-t", "spv1.3", "-v", "1.1", amber_file_path]
     process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return AmberResult(amber_file_path, process.returncode, process.stdout, process.stderr)
 

@@ -36,7 +36,8 @@ class Scraper:
                  spirv_as_path: Path,
                  spirv_dis_path: Path,
                  spirv_to_alloy_path: Path,
-                 skip_validation: bool):
+                 skip_validation: bool,
+                 alloy_module_prefix: str):
         self.output_dir: Path = output_dir
         self.vk_gl_cts_path: Path = vk_gl_cts_path
         self.glslang_path: Path = glslang_path
@@ -47,6 +48,7 @@ class Scraper:
         self.alloy_cache: Set[str] = set()
         self.example_count: int = 0
         self.skip_validation: bool = skip_validation
+        self.alloy_module_prefix: str = alloy_module_prefix
 
     def list_amber_files(self):
         for root, folders, files in os.walk(self.vk_gl_cts_path):
@@ -89,8 +91,8 @@ class Scraper:
             asm = open(assembly_filename, 'r').read()
             pattern = re.compile(r'%(\d+) = OpFunction ')
             for instruction_id in re.findall(pattern, asm):
-                output_file_prefix = os.sep.join([str(self.output_dir), f's{self.example_count:03}'])
-                cmd = [self.spirv_to_alloy_path, binary_filename, instruction_id, output_file_prefix]
+                alloy_module_prefix = os.sep.join([str(self.alloy_module_prefix), f's{self.example_count:03}'])
+                cmd = [self.spirv_to_alloy_path, binary_filename, instruction_id, alloy_module_prefix]
                 if self.skip_validation:
                     cmd += ["skip-validation"]
                 result = subprocess.run(cmd, capture_output=True)
@@ -108,6 +110,7 @@ class Scraper:
                 if maybe_cache_entry in self.alloy_cache:
                     continue
                 self.alloy_cache.add(maybe_cache_entry)
+                output_file_prefix = os.sep.join([str(self.output_dir), f's{self.example_count:03}'])
                 with open(output_file_prefix + '.als', 'w') as output_file:
                     output_file.write('// ' + amber_filename[len(str(self.vk_gl_cts_path)):] + '\n')
                     output_file.write(stdout_string)
@@ -185,6 +188,7 @@ def main():
     parser = argparse.ArgumentParser('A tool to scrape shaders from the Vulkan CTS and generate corresponding Alloy '
                                      'files.')
     parser.add_argument("output_dir", help="Output directory to which Alloy files should be stored.", type=Path)
+    parser.add_argument("alloy_module_prefix")
     parser.add_argument("vk_gl_cts_path", help="Path to VK-GL-CTS checkout.", type=Path)
     parser.add_argument("glslang_path", help="Path to glslangValidator.", type=Path)
     parser.add_argument("spirv_as_path", help="Path to spirv-as.", type=Path)
@@ -200,7 +204,8 @@ def main():
                       spirv_as_path=args.spirv_as_path,
                       spirv_dis_path=args.spirv_dis_path,
                       spirv_to_alloy_path=args.spirv_to_alloy_path,
-                      skip_validation=args.skip_validation)
+                      skip_validation=args.skip_validation,
+                      alloy_module_prefix=args.alloy_module_prefix)
     scraper.doit()
 
 

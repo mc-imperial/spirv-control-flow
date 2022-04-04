@@ -27,11 +27,8 @@ CURR_DIR = os.path.dirname(__file__)
 # program description
 t = 'This tool checks whether the control flow graph is deemed feasible.'
 
-# Initiate the parser with a description
-parser = argparse.ArgumentParser( description = t)
-
 # Disable default help
-parser = ArgumentParser(add_help=False)
+parser = ArgumentParser(description=t, add_help=False)
 required = parser.add_argument_group('required arguments')
 optional = parser.add_argument_group('optional arguments')
 
