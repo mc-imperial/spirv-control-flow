@@ -23,6 +23,21 @@ import traceback
 from argparse import ArgumentParser
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter(
+    fmt='%(asctime)s.%(msecs)03d: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+file_handler = logging.FileHandler(filename=f"fleshing_runner_{time.time_ns()}.log")
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 
 def get_test_folders(xml_folder):
@@ -116,8 +131,8 @@ def configure_logging():
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+
 def main():
-    configure_logging()
     args = parse_args()
     xml_folder = os.path.join(os.getcwd(), args.xml_folder)
     logger.info(f"Input folder: {args.xml_folder}")
