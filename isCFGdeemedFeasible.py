@@ -67,6 +67,8 @@ optional.add_argument('-s','--solver',
                     help = 'Constraint/SAT Solver: By default, the pure Java solver "SAT4J" is chosen since it runs on every platform and operating system. If you require faster performance, you can try one of the native solver such as MiniSat or ZChaff.',
                     )
 
+optional.add_argument("--block-limit", required=False, type=int, default=100, help="Any .als files containing more blocks than this limit will be skipped.")
+
 args = parser.parse_args()
 
 
@@ -192,9 +194,13 @@ def parse_output(outp, als_filepath):
         #print(data)
         writer.writerow(data)
 
+def is_likely_to_timeout(path_to_als, block_limit=100):
+    num_blocks = blocks(path_to_als)
+    return num_blocks > block_limit
 
 def checkCFG():
     infeasible = ''
+    skipped = ''
     out_file = open(os.path.join(args.path_to_XML_Output_Folder, "outputs.txt"),"w+")
     # create csv and write header
     out_csv = open(os.path.join(args.path_to_XML_Output_Folder, "out.csv"), "w")
@@ -222,6 +228,14 @@ def checkCFG():
         path_to_als = os.path.join(args.path_to_alloy_Files, filename)
         output += str(path_to_als)+'\n'
         print(path_to_als)
+
+        if is_likely_to_timeout(path_to_als, block_limit=args.block_limit):
+            block_limit_warning = f"Skipping {path_to_als} as it will likely take too long to compute.\nSee is_likely_to_timeout for more details."
+            print(block_limit_warning)
+            output += f'\n{block_limit_warning}'
+            out_file.write(output)
+            skipped += f"{path_to_als}\n"
+            continue
 
         basefilename = os.path.splitext(filename)[0]
         cmd = 'cd '+args.path_to_AlloyStar+' && ' \
@@ -285,6 +299,7 @@ def checkCFG():
         parse_output(output, path_to_als)
 
     number_infeasible = infeasible.count('\n')
+    number_skipped = skipped.count("\n")
     hurrah = """
                                       \O/
                                        |
@@ -292,7 +307,13 @@ def checkCFG():
                                      _/ \_
                                             """
     bord = '##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##\n\n'
-    final = str(number_als_files)+' GRAPHS ARE CHECKED. THE '+str(number_infeasible)+' GRAPHS BELOW ARE DEEMED INFEASIBLE:\n' + infeasible + '\nALL OUTPUTS SAVED IN '+str(os.path.join(args.path_to_XML_Output_Folder, "outputs.txt"))+'\n\n'
+    final = f'{number_als_files} GRAPHS WERE PROCESSED. {number_als_files - number_skipped} GRAPHS WERE CHECKED. {number_infeasible} ARE INFEASIBLE. {number_skipped} WERE SKIPPED.'
+    if number_infeasible > 0:
+        final += f'\nTHE {number_infeasible} GRAPHS BELOW ARE DEEMED INFEASIBLE:\n {infeasible}'
+    if number_skipped > 0:
+        final += f'\nTHE {number_skipped} GRAPHS BELOW WERE SKIPPED:\n{skipped}'
+    
+    final += '\nALL OUTPUTS SAVED IN '+str(os.path.join(args.path_to_XML_Output_Folder, "outputs.txt"))+'\n\n'
     _final = '\n\n\n'+hurrah+'\n'+bord+final+bord
     print(_final)
     out_file.write(_final)

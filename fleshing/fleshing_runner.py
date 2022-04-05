@@ -23,21 +23,6 @@ import traceback
 from argparse import ArgumentParser
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter(
-    fmt='%(asctime)s.%(msecs)03d: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
-
-file_handler = logging.FileHandler(filename=f"fleshing_runner_{time.time_ns()}.log")
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
 
 
 def get_test_folders(xml_folder):
@@ -45,6 +30,7 @@ def get_test_folders(xml_folder):
 
 
 def run_fleshing(xml_folder, seeds):
+    configure_logging()
     files_with_errors = []
     files_without_terminal_nodes = []
     for test_folder in get_test_folders(xml_folder):
