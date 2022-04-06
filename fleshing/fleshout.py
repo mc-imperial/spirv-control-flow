@@ -28,14 +28,12 @@ class NoTerminalNodesInCFGError(Exception):
 class AllTerminalNodesUnreachableError(Exception):
 
     def __init__(self, *args):
-        super().__init__("Fleshing requires a CFG to have at least one terminal node that \
-            can be reached from the entry point.")
+        super().__init__("Fleshing requires a CFG to have at least one terminal node that can be reached from the entry point.")
 
 class TerminalNodesUnreachableFromCurrentNodeError(Exception):
 
     def __init__(self, node, terminal_nodes):
-        super().__init__(f"No terminal node could be found starting at node {node}.\n \
-            The terminal nodes are {terminal_nodes}") 
+        super().__init__(f"No terminal node could be found starting at node {node}. The terminal nodes are:\n {terminal_nodes}") 
 
 def get_field_from_instance(instance, label):
     for child in instance:

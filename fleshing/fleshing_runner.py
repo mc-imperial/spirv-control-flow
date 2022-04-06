@@ -32,7 +32,7 @@ def get_test_folders(xml_folder):
 def run_fleshing(xml_folder, seeds):
     configure_logging()
     files_with_errors = []
-    files_without_terminal_nodes = []
+    files_with_terminal_node_issues = []
     for test_folder in get_test_folders(xml_folder):
         test_file = os.path.join(xml_folder, test_folder, "test_0.xml")
 
@@ -47,19 +47,19 @@ def run_fleshing(xml_folder, seeds):
                 amber_file_path = test_file.replace(".xml", f"_{seed}") + ".amber"
                 with open(amber_file_path, 'w') as amber_file:
                     amber_file.write(amber_program_str)
-            except fleshout.NoTerminalNodesInCFGError:
-                files_without_terminal_nodes.append(test_file)
+            except (fleshout.NoTerminalNodesInCFGError, fleshout.AllTerminalNodesUnreachableError):
+                files_with_terminal_node_issues.append(test_file)
                 logger.error(traceback.format_exc())
                 logger.error(test_file)
                 logger.error(seed)
                 break # No point trying a different seed
-            except (KeyError, AssertionError):
+            except (KeyError, AssertionError, fleshout.TerminalNodesUnreachableFromCurrentNodeError):
                 files_with_errors.append(test_file)
                 logger.error(traceback.format_exc())
                 logger.error(test_file)
                 logger.error(seed)
 
-    logger.info(f"Found {len(files_without_terminal_nodes)} CFGs without a terminal node")
+    logger.info(f"Found {len(files_with_terminal_node_issues)} CFGs have either no terminal nodes or all terminal nodes are unreachable")
     logger.info(f"Found {len(files_with_errors)} errors when generating amber files")
 
 
