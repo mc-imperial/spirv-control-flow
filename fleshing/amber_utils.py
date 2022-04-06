@@ -1,3 +1,17 @@
+# Copyright 2022 The SPIRV-Control Flow Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import fleshing_runner
 import os
 import pathlib
@@ -5,11 +19,13 @@ import shutil
 
 from argparse import ArgumentParser
 
+
 def get_amber_files(folder):
     for root, _, files in os.walk(folder):
         for file in files:
             if file.endswith(".amber"):
                 yield os.path.join(root, file)
+
 
 def copy_amber_files(src_folder, dst_folder):
     for test_folder in fleshing_runner.get_test_folders(src_folder):
@@ -20,6 +36,7 @@ def copy_amber_files(src_folder, dst_folder):
                 continue
             new_file_name = os.path.join(dst_folder, test_folder + "_" + file)
             shutil.copyfile(full_file_path, new_file_name)
+
 
 def find_path(amber_file):
     with open(amber_file, 'r') as f:
@@ -33,8 +50,10 @@ def find_path(amber_file):
     path = lines[path_idx].split(';')[1][1:]
     return path
 
+
 def delete_file(file):
     os.remove(file)
+
 
 def deduplicate(amber_folder):
     paths = {}
@@ -54,6 +73,7 @@ def deduplicate(amber_folder):
             continue
         paths[parent_name].add(path)
 
+
 def parse_args():
     t = "Useful amber related functions"
     parser = ArgumentParser(description=t)
@@ -69,6 +89,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def main():
     args = parse_args()
     
@@ -78,6 +99,7 @@ def main():
         deduplicate(args.folder)
     else:
         print(f"Invalid command: {args.subparser_name}")
+
 
 if __name__ == "__main__":
     main()
