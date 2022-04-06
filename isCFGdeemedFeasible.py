@@ -201,6 +201,7 @@ def is_likely_to_timeout(path_to_als, block_limit=100):
 def checkCFG():
     infeasible = ''
     skipped = ''
+    errors = ''
     out_file = open(os.path.join(args.path_to_XML_Output_Folder, "outputs.txt"),"w+")
     # create csv and write header
     out_csv = open(os.path.join(args.path_to_XML_Output_Folder, "out.csv"), "w")
@@ -241,7 +242,7 @@ def checkCFG():
         cmd = 'cd '+args.path_to_AlloyStar+' && ' \
               'mkdir -p '+os.path.join(args.path_to_XML_Output_Folder, basefilename)+' && ' \
               'java -Xmx'+str(args.memory)+'g -Djava.library.path='+get_processor_info()+' -Dout='+os.path.join(args.path_to_XML_Output_Folder, basefilename)+' -Dquiet=false -Dsolver='+args.solver+' -Dhigherorder=true -Dcmd=0 edu/mit/csail/sdg/alloy4whole/RunAlloy '+path_to_als
-        tmp = Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        tmp = Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, text=True)
 
         global t_OoM
         t_OoM = 0
@@ -249,12 +250,18 @@ def checkCFG():
 
         # Getting realtime output
         while True:
-            lineoutput = tmp.stdout.readline()
-            if lineoutput == '' and tmp.poll() is not None:
+            line_output = tmp.stdout.readline()
+            if line_output == '' and tmp.poll() is not None:
                 break
-            if lineoutput and lineoutput.strip() != '':
-                print(lineoutput.strip())
-                output += str(lineoutput)
+            if line_output and line_output.strip() != '':
+                print(line_output.strip())
+                output += str(line_output)
+        
+        if tmp.returncode != 0:
+            error_str = "".join(tmp.stderr.readlines())
+            print(error_str)
+            output += error_str
+            errors += str(path_to_als) + '\n'
 
         t_OoM = round(time.time() - start_time, 2)
         print('Elapsed time: ' + str(t_OoM) + 's')
@@ -300,6 +307,8 @@ def checkCFG():
 
     number_infeasible = infeasible.count('\n')
     number_skipped = skipped.count("\n")
+    number_errors = errors.count("\n")
+
     hurrah = """
                                       \O/
                                        |
@@ -307,7 +316,9 @@ def checkCFG():
                                      _/ \_
                                             """
     bord = '##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##\n\n'
-    final = f'{number_als_files} GRAPHS WERE PROCESSED. {number_als_files - number_skipped} GRAPHS WERE CHECKED. {number_infeasible} ARE INFEASIBLE. {number_skipped} WERE SKIPPED.'
+    final = f'{number_als_files} GRAPHS WERE PROCESSED. {number_errors} GRAPHS HAD ERRORS. {number_als_files - number_skipped - number_errors} GRAPHS WERE CHECKED. {number_infeasible} ARE INFEASIBLE. {number_skipped} WERE SKIPPED.'
+    if number_errors > 0:
+        final += f'\nTHE {number_errors} GRAPHS BELOW HAVE ERRORS:\n {errors}'
     if number_infeasible > 0:
         final += f'\nTHE {number_infeasible} GRAPHS BELOW ARE DEEMED INFEASIBLE:\n {infeasible}'
     if number_skipped > 0:
