@@ -63,7 +63,7 @@ def generate_xml_files(args):
 
 def run_fleshing(xml_path, seeds):
     program_path = os.path.join(os.path.dirname(__file__), "fleshing_runner.py")
-    fleshing_cmd = ["python3", program_path, xml_path, "--fleshing-seeds"] + [str(seed) for seed in FLESHING_SEEDS]
+    fleshing_cmd = ["python3", program_path, xml_path, "--fleshing-seeds"] + [str(seed) for seed in seeds]
 
     print(f"Running {fleshing_cmd}")
     fleshing_result = subprocess.run(fleshing_cmd, capture_output=True, text=True)
