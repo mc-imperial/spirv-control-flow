@@ -25,6 +25,12 @@ import sys
 
 from pathlib import Path
 
+def conditional_contains_duplicate_successors(assembly_text):
+    pattern = re.compile(r"OpBranchConditional[\s]+[%][a-zA-Z0-9_]+([\s]+[%][a-zA-Z0-9_]+)\1")
+    return len(pattern.findall(assembly_text)) > 0
+
+def contains_filter_condition(assembly_text):
+    return conditional_contains_duplicate_successors(assembly_text)
 
 class Converter:
 
@@ -34,11 +40,15 @@ class Converter:
                  input_dir: Path,
                  output_dir: Path,
                  spirv_as_path: Path,
-                 spirv_to_alloy_path: Path):
+                 spirv_to_alloy_path: Path,
+                 alloy_module_prefix: Path,
+                 skip_validation: bool):
         self.input_dir: Path = input_dir
         self.output_dir: Path = output_dir
         self.spirv_as_path: Path = spirv_as_path
         self.spirv_to_alloy_path: Path = spirv_to_alloy_path
+        self.alloy_module_prefix: Path = alloy_module_prefix
+        self.skip_validation: bool = skip_validation
 
     def convert_asm_file(self, asm_filename):
         binary_filename = self.TEMPDIR + os.sep + 'temp.spv'
@@ -50,20 +60,26 @@ class Converter:
             print("return code = %d" % result.returncode)
             print("stdout:\n\n%s\n\n" % result.stdout.decode('utf-8'))
             print("stderr:\n\n%s\n\n" % result.stderr.decode('utf-8'))
-            print(open(tempfilename).read())
+            print(open(asm_filename).read())
 
         # Check that execution was successful.
         assert result.returncode == 0
 
         assembly_text = open(asm_filename, 'r').read()
+
+        if contains_filter_condition(assembly_text):
+            print(f"Filtered {asm_filename}")
+            return
         pattern = re.compile(r'%(\d+) = OpFunction ')
         matches = re.findall(pattern, assembly_text)
         if len(matches) != 1:
             print(f"Error: there should be exactly one OpFunction instruction in {asm_filename}")
             sys.exit(1)
         function_id = matches[0]
-        output_file_prefix = os.sep.join([str(self.output_dir), os.path.splitext(os.path.basename(asm_filename))[0]])
-        cmd = [str(self.spirv_to_alloy_path), binary_filename, function_id, output_file_prefix]
+        alloy_module_name = os.sep.join([str(self.alloy_module_prefix), "als_" + os.path.splitext(os.path.basename(asm_filename))[0]])
+        cmd = [str(self.spirv_to_alloy_path), binary_filename, function_id, alloy_module_name]
+        if self.skip_validation:
+            cmd += ["skip-validation"]
         result = subprocess.run(cmd, capture_output=True)
 
         if result.returncode != 0:
@@ -75,6 +91,7 @@ class Converter:
 
         assert result.returncode == 0
 
+        output_file_prefix = os.sep.join([str(self.output_dir), os.path.splitext(os.path.basename(asm_filename))[0]])
         with open(output_file_prefix + '.als', 'w') as output_file:
             output_file.write(result.stdout.decode('utf-8'))
 
@@ -96,11 +113,16 @@ def main():
     parser.add_argument("output_dir", help="Output directory to which Alloy files should be stored.", type=Path)
     parser.add_argument("spirv_as_path", help="Path to spirv-as.", type=Path)
     parser.add_argument("spirv_to_alloy_path", help="Path to spirv-to-alloy.", type=Path)
+    parser.add_argument("alloy_module_prefix", help="The prefix used for the alloy module name", type=Path)
+    parser.add_argument("--skip-validation", required=False, default=False, action='store_true',
+        help="This options skips generating the validCFG/Valid check in the resulting .als files.")
     args = parser.parse_args()
     converter = Converter(input_dir=args.input_dir,
                           output_dir=args.output_dir,
                           spirv_as_path=args.spirv_as_path,
-                          spirv_to_alloy_path=args.spirv_to_alloy_path)
+                          spirv_to_alloy_path=args.spirv_to_alloy_path,
+                          alloy_module_prefix=args.alloy_module_prefix,
+                          skip_validation=args.skip_validation)
     converter.doit()
 
 

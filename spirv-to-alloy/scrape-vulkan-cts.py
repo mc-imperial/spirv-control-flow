@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import convert_asm_directory
 import os
 import pathlib
 import re
@@ -89,6 +90,10 @@ class Scraper:
             result = subprocess.run(cmd, capture_output=True)
             assert result.returncode == 0
             asm = open(assembly_filename, 'r').read()
+            if convert_asm_directory.contains_filter_condition(asm):
+                    print(f"Filtered {assembly_filename}")
+                    return
+
             pattern = re.compile(r'%(\d+) = OpFunction ')
             for instruction_id in re.findall(pattern, asm):
                 alloy_module_prefix = os.sep.join([str(self.alloy_module_prefix), f's{self.example_count:03}'])
