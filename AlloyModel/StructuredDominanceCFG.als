@@ -883,14 +883,14 @@ pred StructurallyAcyclic
 
 /**
   *  Let B be a continue target; suppose that B is not a loop header and let A->B a control flow edge.
-  *  Then A is part of the loop associated with B
+  *  Then A is part of the loop associated with B. The rule also excludes consideration of backedges.
   *
   *   spirv-val does (unjustifiably) accept edges like the ones in the following GitHub issue:
   *   https://github.com/afd/spirv-control-flow/issues/28
   */
 pred BranchToContinue 
 {
-	{ all l: LoopHeader | l != l.continue => no (Block - loopConstruct[l]) <: jumpSet :> l.continue }
+	{ all l: LoopHeader | l != l.continue => no (Block - loopConstruct[l]) <: (jumpSet - backEdge) :> l.continue }
 }
 
 
@@ -973,4 +973,4 @@ pred invalid_example {
     continue = (b2 -> b3)
   }
 }
-test2: run { invalid_example && Valid } for 5 Block 
+test2: run { invalid_example && Valid } for 5 Block
