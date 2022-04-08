@@ -14,15 +14,18 @@
 
 class AmberResult:
 
-    def __init__(self, filename, return_code, stdout, stderr):
+    def __init__(self, filename, return_code=-1, stdout="", stderr="", is_timed_out=False):
         self.filename = filename
         self.return_code = return_code
         self.stdout = stdout
         self.stderr = stderr
+        self.is_timed_out = is_timed_out
     
     def __str__(self):
         success_str = "Success" if self.return_code == 0 else "Failure"
         ret = f"{success_str}: {self.filename}"
+        if self.is_timed_out:
+            ret += "\nAMBER TIMED OUT\n"
         ret += self.stdout
         ret += self.stderr
         return ret
