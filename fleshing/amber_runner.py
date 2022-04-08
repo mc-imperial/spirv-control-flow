@@ -16,6 +16,7 @@ import logging
 import os
 import subprocess
 import time
+import traceback
 
 from argparse import ArgumentParser
 from pathlib import Path
@@ -29,8 +30,13 @@ logger = logging.getLogger(__name__)
 
 def execute_amber_on_host(amber_path: Path, amber_file_path: Path) -> AmberResult:
     cmd = [amber_path, "-d", "-t", "spv1.3", "-v", "1.1", amber_file_path]
-    process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    return AmberResult(amber_file_path, process.returncode, process.stdout, process.stderr)
+    try:
+        process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+        return AmberResult(amber_file_path, process.returncode, process.stdout, process.stderr)
+    except subprocess.TimeoutExpired as e:
+        logger.error(traceback.format_exc())
+        logger.error(amber_file_path)
+        return AmberResult(amber_file_path, is_timed_out=True)
 
 
 def execute_amber_folder(amber_exec_path: Path, amber_folder: Path, use_android: bool, android_serial: Optional[str]):
