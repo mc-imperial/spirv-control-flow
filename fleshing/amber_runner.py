@@ -107,10 +107,13 @@ def configure_logging():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    file_handler = logging.FileHandler(filename=f"amber_runner_{time.time_ns()}.log")
+    os.makedirs("logs", exist_ok=True)
+    log_filename = f"logs/amber_runner_{time.time_ns()}.log"
+    file_handler = logging.FileHandler(filename=log_filename)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+    logger.info(f"Logging results to {log_filename}")
 
 
 def main():
