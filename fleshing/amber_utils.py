@@ -18,6 +18,7 @@ import pathlib
 import shutil
 
 from argparse import ArgumentParser
+from pathlib import Path
 
 
 def get_amber_files(folder):
@@ -72,6 +73,14 @@ def deduplicate(amber_folder):
             delete_file(file_path)
             continue
         paths[parent_name].add(path)
+
+
+def extract_asm(amber_file: Path) -> str:
+    with open(amber_file, 'r') as f:
+        lines = f.read()
+    start_idx = lines.find('; SPIR-V')
+    end_idx = lines.find('END')
+    return lines[start_idx:end_idx]
 
 
 def parse_args():
