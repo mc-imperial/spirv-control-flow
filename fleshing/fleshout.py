@@ -20,20 +20,24 @@ from collections import deque
 
 from typing import Deque, Dict, List, Set
 
+
 class NoTerminalNodesInCFGError(Exception):
 
     def __init__(self, *args):
         super().__init__("Fleshing requires the CFG to have at least one terminal node.")
+
 
 class AllTerminalNodesUnreachableError(Exception):
 
     def __init__(self, *args):
         super().__init__("Fleshing requires a CFG to have at least one terminal node that can be reached from the entry point.")
 
+
 class TerminalNodesUnreachableFromCurrentNodeError(Exception):
 
     def __init__(self, node, terminal_nodes):
         super().__init__(f"No terminal node could be found starting at node {node}. The terminal nodes are:\n {terminal_nodes}") 
+
 
 def get_field_from_instance(instance, label):
     for child in instance:
@@ -218,7 +222,6 @@ def get_exit_blocks(graph) -> Set[str]:
     return result
 
 
-
 # Function to perform BFS traversal from a given source vertex in a graph to
 # determine if a destination vertex is reachable from the source or not
 def isReachable(graph, s, d):
@@ -292,22 +295,29 @@ def random_paths_of_desired_length_without_passing_through_doomed_(graph, start,
                 paths.append(newpath)
     return paths
 
+
+def get_non_doomed_graph(graph, doomed_nodes):
+    non_doomed_graph = {}
+    for node in graph:
+        if node in doomed_nodes:
+            continue
+        non_doomed_graph[node] = []
+        for neighbour in graph[node]:
+            if neighbour in doomed_nodes:
+                continue
+            non_doomed_graph[node].append(neighbour)
+    return non_doomed_graph
+
+
 def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, prng):
     graph = jump_relation.copy()
     doomed = get_doomed_blocks(graph)
     if start in doomed:
         raise AllTerminalNodesUnreachableError()
 
-    non_doomed_graph = {}
-    for node in graph:
-        if node in doomed:
-            continue
-        non_doomed_graph[node] = []
-        for neighbour in graph[node]:
-            if neighbour in doomed:
-                continue
-            non_doomed_graph[node].append(neighbour)
+    non_doomed_graph = get_non_doomed_graph(graph, doomed)
     return find_random_path(non_doomed_graph, start, length, [], prng)
+
 
 def find_random_path(graph, src, target_length, path, prng):
     path.append(src)
@@ -321,6 +331,7 @@ def find_random_path(graph, src, target_length, path, prng):
     next_node = prng.choice(graph[src])
     return find_random_path(graph, next_node, target_length, path, prng)
 
+
 def recover_bfs_path(src, dst, parents):
     if src == dst:
         return [dst]
@@ -331,6 +342,7 @@ def recover_bfs_path(src, dst, parents):
         dst = parents[dst]
     path.append(src)
     return path[::-1]
+
 
 def find_path_to_exit_node(graph, src, exit_nodes):
     # BFS where termination condition is reaching an exit node.
@@ -354,6 +366,7 @@ def find_path_to_exit_node(graph, src, exit_nodes):
                 queue.append(neighbour)
                 parents[neighbour] = n
     raise TerminalNodesUnreachableFromCurrentNodeError(src, exit_nodes)
+
 
 def dijkstra(graph, initial):
     shortest_path = None
@@ -405,8 +418,6 @@ def dijkstra(graph, initial):
     return shortest_path
 
 
-
-
 def random_path_quasi_bounded_length(graph, start, length, path, prng):
     path = path + [start]
     all_blocks = set(graph.keys()).union(set(x for lst in graph.values() for x in lst))
@@ -424,7 +435,6 @@ def random_path_quasi_bounded_length(graph, start, length, path, prng):
     return paths
 
 
-
 def random_path_max_length(graph, start, maxlength, path, prng):
     path = path + [start]
     if len(path) == maxlength:
@@ -436,8 +446,6 @@ def random_path_max_length(graph, start, maxlength, path, prng):
     node = prng.choice(adj)
     newpath = random_path_max_length(graph, node, maxlength, path)
     return newpath
-
-
 
 
 def find_all_paths_without_passing_through(graph, start, end, through, backedges, path=[]):
