@@ -100,7 +100,8 @@ def configure_logging():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    log_filename = f"logs/cross_compilation_{time.time_ns()}.log"
+    os.makedirs("cross_compilation_logs", exist_ok=True)
+    log_filename = f"cross_compilation_logs/cross_compilation_{time.time_ns()}.log"
     file_handler = logging.FileHandler(filename=log_filename)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
