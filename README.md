@@ -47,6 +47,7 @@ A collection of techniques for scrutinising SPIR-V control flow rules, their val
 ## Repository Overview <a name="repository-overview"></a>
 
 
+
 ```
 📦 main
 ├─ .gitignore
@@ -57,9 +58,29 @@ A collection of techniques for scrutinising SPIR-V control flow rules, their val
 ├─ CONTRIBUTORS
 ├─ LICENSE
 ├─ README.md
+├─ fleshing
+│  ├─ .gitignore
+│  ├─ README.md
+│  ├─ amber_result.py
+│  ├─ amber_runner.py
+│  ├─ amber_utils.py
+│  ├─ copy-libs.sh
+│  ├─ cross_compilation.py
+│  ├─ examples
+│  │  ├─ simple-fleshed.amber
+│  │  ├─ simple.asm
+│  │  └─ simple.pdf
+│  ├─ fleshing_runner.py
+│  ├─ fleshout.py
+│  ├─ run_amber_on_android.py
+│  ├─ test.py
+│  ├─ test_0.png
+│  ├─ test_0.xml
+│  └─ use_mesa.sh
 ├─ isCFGdeemedFeasible.py
 └─ spirv-to-alloy
    ├─ CMakeLists.txt
+   ├─ convert_asm_directory.py
    ├─ scrape-vulkan-cts.py
    ├─ src
    │  └─ spirv_to_alloy
@@ -73,10 +94,12 @@ A collection of techniques for scrutinising SPIR-V control flow rules, their val
          └─ SPIRV-Tools
 ```
 
+
+
 ## Getting Started <a name="getting-started"></a>
 
 
-These instructions will guide you through getting a set of tools underway for checking whether the control flow graph is deemed feasible.
+These instructions will guide you through getting a set of tools underway for checking whether a given control flow graph is deemed feasible.
 
 
 ### spirv-to-alloy <a name="spirv-to-alloy"></a>

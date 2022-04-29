@@ -23,7 +23,7 @@
          /* 
 			 * This version allows but ignores structurally-unreachable blocks which means that 
 			 * structurally control flow rules do not apply to "wholly unreachable" blocks.
-			 * For this, we define  StructurallyReachableBlock  (as a sub-type of Block) which contains only
+			 * For this, we define  StructurallyReachableBlock (as a subset of Block) which contains only
 			 * structurally reachable blocks which obey the structurally control flow rules
 			 */
 
@@ -44,10 +44,10 @@ sig Block
 }
 
 
-sig  StructurallyReachableBlock  extends Block  {} // structurally reachable blocks
+sig  StructurallyReachableBlock  in Block  {} 
 
 
-let Unreachable =  Block -  StructurallyReachableBlock  
+let StructurallyUnreachableBlock =  Block -  StructurallyReachableBlock  
 
 
 /**
@@ -55,7 +55,7 @@ let Unreachable =  Block -  StructurallyReachableBlock
   *  (The Khronos Group, 2021, p.19)
   *  https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-one sig EntryPoint in  StructurallyReachableBlock  {}
+one sig EntryPoint in  Block  {}
 
 
 /**
@@ -63,9 +63,9 @@ one sig EntryPoint in  StructurallyReachableBlock  {}
   *  (The Khronos Group, 2021, p.20)
   *  https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-sig HeaderBlock extends  StructurallyReachableBlock    
+sig HeaderBlock extends  Block    
 {
-	merge : one  StructurallyReachableBlock 
+	merge : one  Block 
 }
 
 
@@ -76,7 +76,7 @@ sig HeaderBlock extends  StructurallyReachableBlock
   */
 sig LoopHeader extends HeaderBlock   
 {
-	continue : one  StructurallyReachableBlock 
+	continue : one  Block 
 }
 
 
@@ -126,27 +126,21 @@ fun jumpSet :  Block -> Block
 }
 
 
-fun structurallyReachable :  set  StructurallyReachableBlock  
-{
-     EntryPoint.*(jumpSet + merge + continue)
-}
-
-
 /**
   *  exitNodes models the set of "Termination Instruction" used to terminate blocks
   *  (The Khronos Group, 2021, p.20)
   *  https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-fun exitNodes :  StructurallyReachableBlock    
+fun exitNodes :  Block    
 {
-	{ B:  StructurallyReachableBlock  | no B<:jump}
+	{ B:  Block  | no B<:jump}
 }
 
 
 /**
   *  A helper function for the computation of structured-(post)-dominance relation
   */
-fun MetaReachableFromWithoutPassingThrough[from,through:  StructurallyReachableBlock ] : set  StructurallyReachableBlock  
+fun MetaReachableFromWithoutPassingThrough[from,through:  StructurallyReachableBlock ] : set  Block  
 {
 	from.*(( StructurallyReachableBlock -through) <: (jumpSet + merge + continue) ) - through
 }
@@ -163,7 +157,7 @@ fun MetaReachableFromWithoutPassingThrough[from,through:  StructurallyReachableB
 		     ⬇
 				B
   */
-fun structurallyDominates :   StructurallyReachableBlock  ->  StructurallyReachableBlock  
+fun structurallyDominates :   Block  ->  Block  
 {
 	{ A, B:  StructurallyReachableBlock   |  B in A.*(jumpSet + merge + continue) and B not in MetaReachableFromWithoutPassingThrough[EntryPoint,A] }
 }
@@ -173,7 +167,7 @@ fun structurallyDominates :   StructurallyReachableBlock  ->  StructurallyReacha
   *  "'A' strictly structurally-dominates 'B' only if 'A' structurally-dominates 'B'
   *   and 'A' and 'B' are different blocks"
   */
-fun strictlyStructurallyDominates :  StructurallyReachableBlock  ->  StructurallyReachableBlock 
+fun strictlyStructurallyDominates :  Block  ->  Block 
 {
 	structurallyDominates - iden
 }
@@ -191,9 +185,9 @@ fun strictlyStructurallyDominates :  StructurallyReachableBlock  ->  Structurall
 		     ⬇
 			  Exit
   */
-fun structurallyPostDominates :   StructurallyReachableBlock  ->  StructurallyReachableBlock  
+fun structurallyPostDominates :   Block  ->  Block  
 {
-    { B, A:  StructurallyReachableBlock  | B in A.*(jumpSet + merge + continue) and no exitNodes & MetaReachableFromWithoutPassingThrough[A,B] }
+    { B, A:  Block  | B in A.*(jumpSet + merge + continue) and no exitNodes & MetaReachableFromWithoutPassingThrough[A,B] }
 }
 
 
@@ -209,7 +203,7 @@ fun backEdgeSeq :  jump
 {
 	-- We take into account all parallel back edges (incident to the same pair)
 	{ 	 
-		D:  StructurallyReachableBlock  , i:Int, B:  StructurallyReachableBlock  |  B->D in structurallyDominates and 	 B in D.jumpSet and i >=0 and i < #(D.(jump:>B))
+		D:  Block  , i:Int, B:  Block  |  B->D in structurallyDominates and 	 B in D.jumpSet and i >=0 and i < #(D.(jump:>B))
 	}
 }
 
@@ -217,9 +211,9 @@ fun backEdgeSeq :  jump
 /**
   *  'backEdge' maps to the (unordered) set of elements in sequence "backEdgeSeq"
   */
-fun backEdge :   StructurallyReachableBlock  ->  StructurallyReachableBlock  
+fun backEdge :   Block  ->  Block  
 {
-    { A, B:  StructurallyReachableBlock  | B in ((A.backEdgeSeq).elems) }
+    { A, B:  Block  | B in ((A.backEdgeSeq).elems) }
 }
 
 
@@ -302,6 +296,16 @@ fun outerInnerLoop  :  StructurallyReachableBlock  ->  StructurallyReachableBloc
   {
 	   disj outH, inH: LoopHeader | inH in loopConstruct[outH]
   }
+}
+
+
+fun outerInner  : Block -> Block {
+	{
+		disj outer, inner: constructHeader | inner in  selectionConstruct[outer] + 
+														 			  loopConstruct[outer]      +
+														 			  continueConstruct[outer]  +
+																	  caseConstruct[outer]      
+	}
 }
 
 
@@ -471,9 +475,38 @@ fun exitEdge :  StructurallyReachableBlock  ->  StructurallyReachableBlock  {
  */
 
 
+
+/**
+  *   StructurallyReachableBlock  is structurally-reachable from Entry
+  */
+fact 
+{
+	StructurallyReachableBlock  = EntryPoint.*(jumpSet + merge + continue)
+}
+
+
+/** This fact tells explicitly that merge and continues for a loop must be different.
+	 In the spec, this fact is implicit comming from the condition (that otherwise is redundant)
+    that "a continue construct must contain its loop's back edge block".
+
+
+		The spec does not explicitly say that a loop's merge block and continue target 
+		have to be different. 
+
+		However, it says: "a continue construct: includes the blocks dominated by an 
+		OpLoopMerge Continue Target and post dominated by the corresponding loop’s 
+		back-edge block, while excluding blocks dominated by that loop’s merge block"
+		
+		This implies that if the loop's merge block and continue target were the same block, 
+		the loop's continue construct would be empty.
+
+		Because the spec goes on to say: "a continue construct must include its loop’s back-edge block", 
+		this implies that a continue construct cannot be empty, which means that a loop's merge block 
+		and continue target have to be different.
+ */
 fact  
 {
-	all l : LoopHeader | no l.merge & l.continue
+	all l : LoopHeader & StructurallyReachableBlock | no l.merge & l.continue
 }
 
 
@@ -489,19 +522,12 @@ fact
 }
 
 
-/**
-  *   StructurallyReachableBlock  is structurally-reachable from Entry
+/** weakly connected (loose ends), i.e., there is a path between every "wholly unreachable" block 
+  * b1 and some structurally-reachable block b2 in the underlying undirected graph
   */
-pred BlockStructurallyReachableFromRoot
+pred WeaklyConnected
 {
-	 StructurallyReachableBlock  in structurallyReachable
-	no Unreachable & structurallyReachable
-
-	/* weakly connected (loose ends), i.e., there is a path between every "wholly unreachable" block 
-	 * b1 \in Unreachable and some structurally-reachable block b2 \in  StructurallyReachableBlock  
-	 * in the underlying undirected graph
-	 */
-	all b1: Unreachable | some b2:  StructurallyReachableBlock  | b1 in b2.*(jumpSet + ~jumpSet)  
+	all b1: StructurallyUnreachableBlock | some b2:  StructurallyReachableBlock  | b1 in b2.*(jumpSet + ~jumpSet)  
 }
 
 
@@ -513,7 +539,7 @@ pred BlockStructurallyReachableFromRoot
   */
 pred UniqueMergeBlock 
 {
-	all b : HeaderBlock | no b.merge & (HeaderBlock - b).merge
+	all b : HeaderBlock & StructurallyReachableBlock | no b.merge & ((HeaderBlock & StructurallyReachableBlock) - b).merge
 }
 
 
@@ -523,9 +549,9 @@ pred UniqueMergeBlock
   *   (The Khronos Group, 2021, p.29)
   *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-pred HeaderBlockStrictlyDominatesItsMergeBlock 
+pred HeaderBlockStrictlyStructurallyDominatesItsMergeBlock 
 {
-	merge in strictlyStructurallyDominates
+	StructurallyReachableBlock <: merge in strictlyStructurallyDominates
 }
 
 
@@ -536,7 +562,7 @@ pred HeaderBlockStrictlyDominatesItsMergeBlock
   */
 pred  BackEdgesBranchToLoopHeader 
 {
-	ran[backEdge] in LoopHeader
+	ran[backEdge] & StructurallyReachableBlock in LoopHeader & StructurallyReachableBlock 
 }
 
 
@@ -547,7 +573,7 @@ pred  BackEdgesBranchToLoopHeader
   */
 pred OneBackEdgeBranchingToLoopHeader 
 {
-	all lh :LoopHeader | one backEdgeSeq :> lh
+	all lh :LoopHeader & StructurallyReachableBlock  | one backEdgeSeq :> lh
 }
 
 
@@ -557,9 +583,9 @@ pred OneBackEdgeBranchingToLoopHeader
   *   (The Khronos Group, 2021, p.29)
   *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-pred LoopHeaderDominatesContinueTarget 
+pred LoopHeaderStructurallyDominatesContinueTarget 
 {
-	continue in structurallyDominates
+	StructurallyReachableBlock <: continue in structurallyDominates
 }
 
 
@@ -568,9 +594,9 @@ pred LoopHeaderDominatesContinueTarget
   *   (The Khronos Group, 2021, p.29)
   *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-pred ContinueTargetDominatesBackEdge 
+pred ContinueTargetStructurallyDominatesBackEdge 
 {
-	~continue.~backEdge in structurallyDominates
+	StructurallyReachableBlock <: (~continue.~backEdge) in structurallyDominates
 }
 
 
@@ -579,9 +605,9 @@ pred ContinueTargetDominatesBackEdge
   *   (The Khronos Group, 2021, p.29)
   *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   */
-pred BackEdgePostDominatesContinueTarget 
+pred BackEdgeStructurallyPostDominatesContinueTarget 
 {
-	backEdge.continue in structurallyPostDominates
+	StructurallyReachableBlock <: (backEdge.continue) in structurallyPostDominates
 }
 
 
@@ -593,7 +619,7 @@ pred BackEdgePostDominatesContinueTarget
   */
 pred ConstructContainsAnotherHeader 
 {
-	all disj h1,h2: HeaderBlock | let lc  = loopConstruct[h1],
+	all disj h1,h2: (HeaderBlock & StructurallyReachableBlock) | let lc  = loopConstruct[h1],
 												 ctc = continueConstruct[h1.continue],
 												 sc  = selectionConstruct[h1],
 												 csc = caseConstruct[h1.jumpSet - h1.merge]
@@ -609,6 +635,9 @@ pred ConstructContainsAnotherHeader
   *  "...a continue construct must include its loop’s back-edge block"
   *   (The Khronos Group, 2021, p.29)
   *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
+  *
+  *   This condition is redundant as it is implied by the other rules: see reasoning 
+  *	above about the fact that merge and continues for a loop must be different
   */
 pred ContinueConstructIncludesItsBackEdge 
 {
@@ -670,7 +699,7 @@ pred InvalidBranchToOuterOpSwitchMerge
   */
 pred NoJumpBetweenCaseConstructs 
 {
-  all sw: SwitchBlock  | no  (caseConstruct[sw.jumpSet] <:jumpSet:> caseConstruct[(SwitchBlock - sw).jumpSet]  )
+  all sw: (SwitchBlock & StructurallyReachableBlock) | no  (caseConstruct[sw.jumpSet] <:jumpSet:> caseConstruct[(SwitchBlock - sw).jumpSet]  )
 }
 
 
@@ -682,9 +711,9 @@ pred NoJumpBetweenCaseConstructs
   */
 pred BranchesBetweenConstructs 
 {
-	all  lh: LoopHeader     											   | let lc  = loopConstruct[lh], ctc = continueConstruct[lh.continue]	| (some lc  => no ( StructurallyReachableBlock  - lc)  <: jumpSet :> (lc - lh)) and  (some ctc => no ( StructurallyReachableBlock  - ctc) <: jumpSet :> (ctc - lh.continue ))   
-	all  sh: SelectionHeader 												| let sc  = selectionConstruct[sh]  | some sc  => no ( StructurallyReachableBlock  - sc)  <: jumpSet :> (sc - sh)
-	all  sw_target : (SwitchBlock.jumpSet - SwitchBlock.merge)  | let csc = caseConstruct[sw_target]| some csc => no ( StructurallyReachableBlock  - csc) <: jumpSet :> (csc - sw_target)
+	all  lh: LoopHeader & StructurallyReachableBlock     		   									    | let lc  = loopConstruct[lh], ctc = continueConstruct[lh.continue]	| (some lc  => no ( StructurallyReachableBlock  - lc)  <: jumpSet :> (lc - lh)) and  (some ctc => no ( StructurallyReachableBlock  - ctc) <: jumpSet :> (ctc - lh.continue ))   
+	all  sh: SelectionHeader & StructurallyReachableBlock 										       | let sc  = selectionConstruct[sh]  | some sc  => no ( StructurallyReachableBlock  - sc)  <: jumpSet :> (sc - sh)
+	all  sw_target : ((SwitchBlock.jumpSet - SwitchBlock.merge) & StructurallyReachableBlock)  | let csc = caseConstruct[sw_target]| some csc => no ( StructurallyReachableBlock  - csc) <: jumpSet :> (csc - sw_target)
 }
 
 
@@ -695,7 +724,7 @@ pred BranchesBetweenConstructs
   */
 pred OpSwitchBlockDominatesAllItsCases 
 {
-	all sw: SwitchBlock  | (sw <:jumpSet:> ( StructurallyReachableBlock  - sw.merge)) in structurallyDominates
+	all sw: (SwitchBlock & StructurallyReachableBlock)  | (sw <:jumpSet:> ( StructurallyReachableBlock  - sw.merge)) in structurallyDominates
 }
 
 
@@ -706,7 +735,7 @@ pred OpSwitchBlockDominatesAllItsCases
 */
 pred AtMostOneBranchToAnotherCaseConstruct 
 {
-	all sw: SwitchBlock, from: sw.jumpSet - sw.merge | let case_construct_from = caseConstruct[from] |																				
+	all sw: (SwitchBlock & StructurallyReachableBlock), from: sw.jumpSet - sw.merge | let case_construct_from = caseConstruct[from] |																				
 															lone case_construct_from  <:jumpSet:> (selectionConstruct[sw] - sw - case_construct_from)
 }
 
@@ -718,7 +747,7 @@ pred AtMostOneBranchToAnotherCaseConstruct
   */
 pred CaseConstructBranchedToByAtMostOneOther 
 {
-	all sw: SwitchBlock, to: sw.jumpSet - sw.merge | let case_construct_to = caseConstruct[to] |																				
+	all sw: (SwitchBlock & StructurallyReachableBlock), to: sw.jumpSet - sw.merge | let case_construct_to = caseConstruct[to] |																				
 															lone (selectionConstruct[sw] - sw - case_construct_to) <:jumpSet:> case_construct_to
 }
 
@@ -734,9 +763,9 @@ pred CaseConstructBranchedToByAtMostOneOther
   * 	The above rule is adjusted as follows:
   *  "if Target T1 branches to Target T2, or if Target T1 branches to the Default
   *   and the Default branches to Target T2, then T1 (or the substring - i.e., the
-  *	consecutive run - of occurrences of T1 in case of multiple occurrences of T1 )
-  *	must immediately precede T2 (or the substring of occurrences of T2 in case of
-  *	multiple occurrences of T2) in the list of the OpSwitch Target operands
+  *	consecutive run - of occurrences of T1 in case of multiple occurrences of T1 
+  *   - ignoring literals and just focusing on labels) must immediately precede T2 
+  *	in the list of the OpSwitch Target operands
   *   see https://gitlab.khronos.org/spirv/SPIR-V/-/issues/673
   *
   *  The above rule is further refined so that T1/T2/Default are replaced by 
@@ -745,21 +774,26 @@ pred CaseConstructBranchedToByAtMostOneOther
   */
 pred OrderOfOpSwitchTargetOperands 
 {
-	-- In the case where a block is a switch block then jump[0] is the default block
-	all sw: SwitchBlock, disj T1,T2: sw.jump.rest.elems, t1: caseConstruct[T1] |
-																		  (
-																				some t1 and some caseConstruct[T2] and
-																				(
-																					( some t1 <:jumpSet:> T2 ) ||
-																							   							(
-																															    (some t1 <:jumpSet:>(sw.jump.first)) and
-																															    (some caseConstruct[sw.jump.first]<:jumpSet:>T2)
-																															 )
-																				 )
-																			 )
-																			 => ( 	idxOf [sw.jump.rest, T2] = lastIdxOf [sw.jump.rest, T1].add[1]
-																					&& ((sw.jump.rest).subseq [idxOf [sw.jump.rest, T2], lastIdxOf [sw.jump.rest, T2]]).elems = T2 // this implements the concept of substring
-																				  )
+	-- jump[0] is the default block
+	all sw: (SwitchBlock & StructurallyReachableBlock), 
+		 disj T1,T2: sw.jump.rest.elems, 
+		 t1: caseConstruct[T1], 
+		 t2: caseConstruct[T2] 		|  let default = sw.jump.first, tail = sw.jump.rest |
+ 
+												(
+													some t1 and some t2 and
+													(
+														( some t1 <:jumpSet:> T2 ) ||
+																							   (
+																									(some t1 <:jumpSet:> default) and
+																									(some caseConstruct[default]<:jumpSet:>T2)
+																								)
+														)
+													)
+																
+													=> ( 	idxOf [tail, T2] = lastIdxOf [tail, T1].add[1]
+															&& ((tail).subseq [idxOf [tail, T1], lastIdxOf [tail, T1]]).elems = T1 // this checks whether the substring of occurrences of T1 is consecutive
+														)
 }
 
 
@@ -783,7 +817,7 @@ pred EntryPointIsNotLoopHeader
   */
 pred OpLoopMergeSecondToLast 
 {
-	{ all l: LoopHeader | (one l<:jump ) or (#(l<:jump) = 2) }
+	{ all l: (LoopHeader & StructurallyReachableBlock) | (one l<:jump ) or (#(l<:jump) = 2) }
 }
 
 
@@ -795,7 +829,7 @@ pred OpLoopMergeSecondToLast
   */
 pred OpSelectionMergeSecondToLast 
 {
-	{ all s: SelectionHeader - SwitchBlock | #(s<:jump) = 2  }
+	{ all s: ((SelectionHeader - SwitchBlock) & StructurallyReachableBlock) | #(s<:jump) = 2  }
 }
 
 
@@ -809,7 +843,7 @@ pred OpSelectionMergeSecondToLast
   */
 pred OutDegree 
 {
-	{all b: Block  | b in SwitchBlock => some b<:jump else #(b<:jump) <= 2}
+	{all b: StructurallyReachableBlock  | b in SwitchBlock => some b<:jump else #(b<:jump) <= 2}
 }
 
 
@@ -822,8 +856,7 @@ pred OutDegree
   */
 pred MultipleOutEdges 
 {
-	all b: Block - HeaderBlock |   (#(b<:jump) >1)  => 
-																		 some b<:exitEdge												 										     
+	all b: StructurallyReachableBlock - HeaderBlock | (#(b.jumpSet) >1)  => some b<:exitEdge												 										     
 }
 
 
@@ -877,7 +910,7 @@ pred ExitingTheConstruct
 
 pred StructurallyAcyclic 
 {
-	no ^(jumpSet + merge + continue - backEdge) & iden -- the result is structurally acyclic after removing self-loops and back edges
+	no ^(StructurallyReachableBlock <: (jumpSet + merge + continue - backEdge)) & iden -- the result is structurally acyclic after removing self-loops and back edges
 }
 
 
@@ -890,7 +923,7 @@ pred StructurallyAcyclic
   */
 pred BranchToContinue 
 {
-	{ all l: LoopHeader | l != l.continue => no (Block - loopConstruct[l]) <: (jumpSet - backEdge) :> l.continue }
+	{ all l: (LoopHeader & StructurallyReachableBlock) | l != l.continue => no (StructurallyReachableBlock - loopConstruct[l]) <: (jumpSet - backEdge) :> l.continue }
 }
 
 
@@ -899,15 +932,14 @@ pred	 ex {}
 
 pred Valid { 
 
-
-	BlockStructurallyReachableFromRoot 
+--	WeaklyConnected 
 	UniqueMergeBlock 
-	HeaderBlockStrictlyDominatesItsMergeBlock 
+	HeaderBlockStrictlyStructurallyDominatesItsMergeBlock 
 	BackEdgesBranchToLoopHeader 
 	OneBackEdgeBranchingToLoopHeader 
-	LoopHeaderDominatesContinueTarget 
-	ContinueTargetDominatesBackEdge 
-	BackEdgePostDominatesContinueTarget 
+	LoopHeaderStructurallyDominatesContinueTarget 
+	ContinueTargetStructurallyDominatesBackEdge 
+	BackEdgeStructurallyPostDominatesContinueTarget 
 	ConstructContainsAnotherHeader 
 	ValidBreakBlock 
 	ValidContinueBlock 
@@ -918,7 +950,7 @@ pred Valid {
 	OpSwitchBlockDominatesAllItsCases 
 	AtMostOneBranchToAnotherCaseConstruct 
 	CaseConstructBranchedToByAtMostOneOther 
-	OrderOfOpSwitchTargetOperands 
+	OrderOfOpSwitchTargetOperands
 	EntryPointIsNotLoopHeader 
 	OpLoopMergeSecondToLast 
 	OpSelectionMergeSecondToLast 
@@ -934,7 +966,7 @@ pred Valid {
 
 pred loop_example {
 /*
- * This control flow graph is invalid according to  SPIR-V Specification Version 1.5 wording 
+ * This control flow graph is invalid according to the SPIR-V Specification Version 1.5 wording 
  * because the loop headed by b2 has no back edge: edge b4->b2 is not a back edge since b4 is unreachable.
  * In structural semantics, however, this example is deemed valid.
  */
