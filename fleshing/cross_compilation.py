@@ -78,7 +78,7 @@ def cross_compile(binary_file: Path, cross_compiler: Path, cross_compiler_name: 
         assert False
 
 
-def validate_target_lang_output(target_lang_compiler: Path, target_lang: str, target_lang_file: Path):
+def validate_glsl(target_lang_compiler: Path, target_lang_file: Path) -> bool:
     cmd = [target_lang_compiler, target_lang_file]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -91,6 +91,30 @@ def validate_target_lang_output(target_lang_compiler: Path, target_lang: str, ta
         return False
     logger.info(f"Validated {target_lang_file}")
     return True
+
+
+def validate_hlsl(target_lang_compiler: Path, target_lang_file: Path, target_profile: str ="cs_6_7") -> bool:
+    cmd = [target_lang_compiler, "-T", target_profile, target_lang_file]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        err_string = f"ERROR: Compilation of {target_lang_file} failed!\n" \
+            f"command: {cmd}\n" \
+            f"return code: {result.returncode}\n" \
+            f"stdout:\n\n{result.stdout}\n\n" \
+            f"stderr:\n\n{result.stderr}\n\n"
+        logger.info(err_string)
+        return False
+    logger.info(f"Validated {target_lang_file}")
+    return True
+
+
+def validate_target_lang_output(target_lang_compiler: Path, target_lang: str, target_lang_file: Path):
+    if target_lang == "glsl":
+        return validate_glsl(target_lang_compiler, target_lang_file)
+    elif target_lang == "hlsl":
+        return validate_hlsl(target_lang_compiler, target_lang_file)
+    else:
+        assert False
     
 
 def run_cross_compilation(amber_folder: Path, spirv_as: Path, cross_compiler: Path, cross_compiler_name: str, target_lang: str, target_lang_compiler: Path):
