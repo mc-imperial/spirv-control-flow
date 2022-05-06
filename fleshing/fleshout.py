@@ -105,10 +105,6 @@ def get_entry_block(instance) -> str:
 
 def get_regular_blocks(instance) -> Set[str]:
     result: Set[str] = set()
-    for child in get_sig_from_instance(instance, 'StructurallyReachableBlock'):
-        result.add(child.attrib['label'])
-    
-    # Get wholly unreachable blocks too
     for child in get_sig_from_instance(instance, 'Block'):
         result.add(child.attrib['label'])
     return result

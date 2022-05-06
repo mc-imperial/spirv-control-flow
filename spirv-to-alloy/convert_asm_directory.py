@@ -91,7 +91,7 @@ class Converter:
 
         assert result.returncode == 0
 
-        output_file_prefix = os.sep.join([str(self.output_dir), os.path.splitext(os.path.basename(asm_filename))[0]])
+        output_file_prefix = os.sep.join([str(self.output_dir), "als_" + os.path.splitext(os.path.basename(asm_filename))[0]])
         with open(output_file_prefix + '.als', 'w') as output_file:
             output_file.write(result.stdout.decode('utf-8'))
 
