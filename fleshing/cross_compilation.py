@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import amber_utils
 import logging
 import os
@@ -42,7 +44,12 @@ def spirv_cross_compile(binary_file: Path, cross_compiler: Path, target_lang: st
         logger.info(err_string)
         return None
     assert result.returncode == 0
-    file_extension = target_lang if target_lang != "glsl" else "comp"
+    if target_lang == "msl":
+        file_extension = "metal"
+    elif target_lang != "glsl":
+        file_extension = target_lang
+    else:
+        file_extension = "comp"
     target_lang_file = binary_file.replace(".spv", f".{file_extension}")
     with open(target_lang_file, 'w') as f:
         f.write(result.stdout)
@@ -108,13 +115,30 @@ def validate_hlsl(target_lang_compiler: Path, target_lang_file: Path, target_pro
     return True
 
 
+def validate_msl(target_lang_compiler: Path, target_lang_file: Path) -> bool:
+    tmp_air = target_lang_file.replace(".metal", ".air")
+    cmd = [target_lang_compiler, '-sdk', 'macosx', 'metal', '-c', target_lang_file, '-o', tmp_air]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        err_string = f"ERROR: Compilation of {target_lang_file} failed!\n" \
+            f"command: {cmd}\n" \
+            f"return code: {result.returncode}\n" \
+            f"stdout:\n\n{result.stdout}\n\n" \
+            f"stderr:\n\n{result.stderr}\n\n"
+        logger.info(err_string)
+        return False
+    logger.info(f"Validated {target_lang_file}")
+    os.remove(tmp_air)
+    return True
+
+
 def validate_target_lang_output(target_lang_compiler: Path, target_lang: str, target_lang_file: Path):
     if target_lang == "glsl":
         return validate_glsl(target_lang_compiler, target_lang_file)
     elif target_lang == "hlsl":
         return validate_hlsl(target_lang_compiler, target_lang_file)
     else:
-        assert False
+        return validate_msl(target_lang_compiler, target_lang_file)
     
 
 def run_cross_compilation(amber_folder: Path, spirv_as: Path, cross_compiler: Path, cross_compiler_name: str, target_lang: str, target_lang_compiler: Path):
@@ -199,6 +223,7 @@ def main():
     amber_folder = os.path.join(os.getcwd(), args.amber_folder)
     run_cross_compilation(amber_folder, args.spirv_as_path, args.cross_compiler_path, args.cross_compiler_name, args.target_lang, args.target_lang_compiler_path)
 
+    print('\a')
 
 if __name__ == "__main__":
     main()
