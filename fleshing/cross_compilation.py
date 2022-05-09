@@ -179,7 +179,7 @@ def parse_args():
 
     parser.add_argument('cross_compiler_path', help='Path to the cross-compiler.', type=Path)
 
-    parser.add_argument('target_lang', help="The language to cross compile to.", choices=["glsl", "hlsl", "msl"], type=str)
+    parser.add_argument('target_lang', help="The language to cross compile to.", choices=["glsl", "hlsl", "metal"], type=str)
 
     parser.add_argument('target_lang_compiler_path', help="The compiler/validator to use to check the target language output.", type=Path)
 
