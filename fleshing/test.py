@@ -61,9 +61,9 @@ def generate_xml_files(args):
     run_cts_scraper(args)
     run_xml_generator(args)
 
-def run_fleshing(xml_path, seeds):
+def run_fleshing(xml_path, seeds, x_threads=1, y_threads=1, z_threads=1):
     program_path = os.path.join(os.path.dirname(__file__), "fleshing_runner.py")
-    fleshing_cmd = ["python3", program_path, xml_path, "--fleshing-seeds"] + [str(seed) for seed in seeds]
+    fleshing_cmd = ["python3", program_path, xml_path, "--fleshing-seeds"] + [str(seed) for seed in seeds] + ["--x-threads", str(x_threads), "--y-threads", str(y_threads), "--z-threads", str(z_threads)]
 
     print(f"Running {fleshing_cmd}")
     fleshing_result = subprocess.run(fleshing_cmd, capture_output=True, text=True)
@@ -94,7 +94,7 @@ def run(args):
     else:
         print("Skipping xml generation...")
     
-    run_fleshing(args.path_to_xml_files, FLESHING_SEEDS)
+    run_fleshing(args.path_to_xml_files, FLESHING_SEEDS, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads)
     amber_utils.deduplicate(args.path_to_xml_files)
     run_amber(args.path_to_amber, args.path_to_xml_files) # amber files are generated in same folder as xml
 
@@ -127,7 +127,9 @@ def parse_args():
     optional.add_argument('--solver', required=False, default = "sat4j", choices=['sat4j', 'cryptominisat', 'glucose', 'plingeling', 'lingeling', 'minisatprover', 'minisat'], help = 'Constraint/SAT Solver: By default, the pure Java solver "SAT4J" is chosen since it runs on every platform and operating system. If you require faster performance, you can try one of the native solver such as MiniSat or ZChaff.')
     optional.add_argument("--skip-validation", required=False, default=False, action='store_true', help="This options skips generating the validCFG/Valid check in the resulting .als files.")
     optional.add_argument("--skip-xml-generation", required=False, default=False, action='store_true', help="Use xml files located in --path_to_xml_files for testing instead of generating new xml files.")
-
+    optional.add_argument("--x-threads", type=int, default=1, help='Number of threads in the x dimension')
+    optional.add_argument("--y-threads", type=int, default=1, help='Number of threads in the y dimension')
+    optional.add_argument("--z-threads", type=int, default=1, help='Number of threads in the z dimension')
     return parser.parse_args()
 
 def main():

@@ -1,22 +1,3 @@
-#!amber
-
-SHADER compute compute_shader SPIRV-ASM
-
-; The example has been fleshed out to follow the path:
-;
-; 5 -> 6 -> 10 -> 7 -> 13 -> 14 -> 9 -> 6 -> 10 -> 7 -> 14 -> 9 -> 6 -> 10 -> 8
-;
-; Two CFG nodes have OpBranchConditional as their terminators: 7 and 10.
-;
-; To follow this path, we need to make these decisions each time we reach 7 or 10:
-;   7: 1, 0
-;  10: 1, 1, 0
-;
-; We equip the shader with three storage buffers:
-; - An input storage buffer with the directions for node 7
-; - An input storage buffer with the directions for node 10
-; - An output storage buffer that records the blocks that are executed
-
 ; SPIR-V
 ; Version: 1.3
 ; Generator: Khronos Glslang Reference Front End; 8
@@ -213,23 +194,3 @@ SHADER compute compute_shader SPIRV-ASM
                OpReturn
 
                OpFunctionEnd
-
-END
-
-BUFFER directions_7 DATA_TYPE uint32 STD430 DATA 1 0 1 0 1 0 1 0 1 0 1 0 END # Multiply directions by number of threads
-BUFFER directions_10 DATA_TYPE uint32 STD430 DATA 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 END
-BUFFER output DATA_TYPE uint32 STD430 SIZE 96 FILL 0 # Change size
-
-PIPELINE compute pipeline
-  ATTACH compute_shader
-
-  BIND BUFFER directions_7 AS storage DESCRIPTOR_SET 0 BINDING 0
-  BIND BUFFER directions_10 AS storage DESCRIPTOR_SET 0 BINDING 1
-  BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING 2
-END
-
-RUN pipeline 1 1 1 # I think this is the number of workgroups in the x, y and z dimensions?
-
-EXPECT directions_7 IDX 0 EQ 1 0 1 0 1 0 1 0 1 0 1 0
-EXPECT directions_10 IDX 0 EQ 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0
-EXPECT output IDX 0 EQ 5 6 10 7 13 14 9 6 10 7 14 9 6 10 8 0 5 6 10 7 13 14 9 6 10 7 14 9 6 10 8 0 5 6 10 7 13 14 9 6 10 7 14 9 6 10 8 0 5 6 10 7 13 14 9 6 10 7 14 9 6 10 8 0 5 6 10 7 13 14 9 6 10 7 14 9 6 10 8 0 5 6 10 7 13 14 9 6 10 7 14 9 6 10 8 0
