@@ -782,7 +782,7 @@ class CFG:
         return rand_path_prefix
 
 
-    def block_to_string_fleshing(self, label: str, id_path: List[str]) -> str:
+    def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size) -> str:
         block_id = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
@@ -796,9 +796,33 @@ class CFG:
                 result += '               %directions_' + str(block) + '_index = OpVariable %local_int_ptr Function %constant_0\n'
 
             result += '\n               %local_invocation_idx = OpLoad %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx_var\n'
+
+            result += '               %x_wg_dim_ptr = OpAccessChain %input_int_ptr %workgroup_id_var %constant_0\n'
+            result += '               %y_wg_dim_ptr = OpAccessChain %input_int_ptr %workgroup_id_var %constant_1\n'
+            result += '               %z_wg_dim_ptr = OpAccessChain %input_int_ptr %workgroup_id_var %constant_2\n'
+            result += '               %x_wg_dim = OpLoad %' + str(self.UINT_TYPE_ID) + ' %x_wg_dim_ptr\n'
+            result += '               %y_wg_dim = OpLoad %' + str(self.UINT_TYPE_ID) + ' %y_wg_dim_ptr\n'
+            result += '               %z_wg_dim = OpLoad %' + str(self.UINT_TYPE_ID) + ' %z_wg_dim_ptr\n'
+            result += '               %z_idx_component = OpIMul %' + str(self.UINT_TYPE_ID) + ' %z_wg_dim %constant_' + str(x_workgroups * y_workgroups) + '\n'
+            result += '               %y_idx_component = OpIMul %' + str(self.UINT_TYPE_ID) + ' %y_wg_dim %constant_' + str(x_workgroups) + '\n'
+            result += '               %yz_idx_component = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %y_idx_component %z_idx_component\n'
+            result += '               %workgroup_idx = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %yz_idx_component %x_wg_dim\n\n'
+
             for block in self.conditional_blocks_id:
-                result += '               %directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes[block]) + '\n'
-            result += '               %output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes['output']) + '\n'
+                result += '               %local_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes[block]) + '\n'
+            result += '\n'
+
+            for block in self.conditional_blocks_id:
+                result += '               %global_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(self.local_array_sizes[block] * workgroup_size) + '\n'
+            result += '\n'
+
+            for block in self.conditional_blocks_id:
+                result += '               %directions_' + str(block) + '_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %global_directions_' + str(block) + '_offset %local_directions_' + str(block) + '_offset\n'
+
+            result += '               %local_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes['output']) + '\n'
+            result += '               %global_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(self.local_array_sizes['output'] * workgroup_size) + '\n'
+            result += '               %output_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %global_output_offset %local_output_offset\n'
+            result += '\n'
 
             for block in self.conditional_blocks_id:
                 result += '               OpStore %directions_' + str(block) + '_index %directions_' + str(block) + '_offset\n' 
@@ -867,10 +891,14 @@ class CFG:
         return result + "\n"
 
     @staticmethod
-    def compute_num_threads(x_threads: int, y_threads: int, z_threads: int) -> int:
+    def compute_num_threads(x_threads: int, y_threads: int, z_threads: int, ) -> int:
+        return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
+    
+    @staticmethod
+    def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int, ) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
-    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads) -> str:
+    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -892,23 +920,26 @@ class CFG:
         #                2: for incrementing the last output index
         new_constants = {0,1,2}.union(set(all_blocks_id))
 
-        new_constants.update([x_threads, y_threads, z_threads])
+        new_constants.update([x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups])
         num_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
+        num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
 
         # find the sizes of the input arrays
         for id in set(id_path):
             if id in self.conditional_blocks_id:
                 direction_size = id_path.count(id)
-                total_direction_size = direction_size * num_threads
+                total_direction_size = direction_size * num_threads * num_workgroups
                 self.local_array_sizes[id] = direction_size 
                 self.array_sizes[id] = total_direction_size
                 new_constants.add(direction_size)
+                new_constants.add(num_threads * direction_size)
                 new_constants.add(total_direction_size)
         output_length = len(id_path) + 1
-        total_output_length = output_length * num_threads
+        total_output_length = output_length * num_threads * num_workgroups
         self.local_array_sizes['output'] = output_length
         self.array_sizes['output'] = total_output_length
         new_constants.add(output_length)
+        new_constants.add(num_threads * output_length)
         new_constants.add(total_output_length)
 
         # types_variables is used to declare various types and variables for storage buffers.
@@ -1022,7 +1053,7 @@ class CFG:
                     else:
                         sh_directions[label_id] = self.switch2edges[label]
             end += ' BUFFER directions_{0} DATA_TYPE uint32 STD430 DATA {1} END\n'\
-                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads))
+                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads * num_workgroups))
 
 
         end += """
@@ -1042,17 +1073,17 @@ class CFG:
    BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING {0}
  END
 
- RUN pipeline 1 1 1
+ RUN pipeline {1} {2} {3}
 
-""".format(conditional_blocks_id2binding['output'])
+""".format(conditional_blocks_id2binding['output'], x_workgroups, y_workgroups, z_workgroups)
 
         for label in conditional_blocks_in_path:
             label_id = self.label_to_id[label]
             end += ' EXPECT directions_{0} IDX 0 EQ {1}\n' \
-                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads))
+                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads * num_workgroups))
 
         end += ' EXPECT output IDX 0 EQ {0}\n' \
-            .format(' '.join(([str(int) for int in id_path] + [str(0)]) * num_threads))
+            .format(' '.join(([str(int) for int in id_path] + [str(0)]) * num_threads * num_workgroups))
 
 
 
@@ -1080,7 +1111,7 @@ SHADER compute compute_shader SPIRV-ASM
 
                OpCapability Shader
                OpMemoryModel Logical GLSL450
-               OpEntryPoint GLCompute %{0} "main" %local_invocation_idx_var
+               OpEntryPoint GLCompute %{0} "main" %local_invocation_idx_var %workgroup_id_var
                OpExecutionMode %{0} LocalSize {16} {17} {18}
                
                ; Below, we declare various types and variables for storage buffers.
@@ -1088,7 +1119,7 @@ SHADER compute compute_shader SPIRV-ASM
 
 {11}
                OpDecorate %local_invocation_idx_var BuiltIn LocalInvocationIndex
-
+               OpDecorate %workgroup_id_var BuiltIn WorkgroupId
 
           %{1} = OpTypeVoid
           %{2} = OpTypeFunction %{1}
@@ -1104,6 +1135,10 @@ SHADER compute compute_shader SPIRV-ASM
 {13}
                %input_int_ptr = OpTypePointer Input %{4}
                %local_invocation_idx_var = OpVariable %input_int_ptr Input
+
+               %vec_3_input = OpTypeVector %{4} 3
+               %workgroup_ptr = OpTypePointer Input %vec_3_input 
+               %workgroup_id_var = OpVariable %workgroup_ptr Input
 
           %{0} = OpFunction %{1} None %{2}
 """.format(self.MAIN_FUNCTION_ID,
@@ -1125,14 +1160,14 @@ SHADER compute compute_shader SPIRV-ASM
                    x_threads, # {16}
                    y_threads, # {17}
                    z_threads) # {18}
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path) for block in self.topological_ordering])
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, x_workgroups, y_workgroups, num_threads) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
         return result_fleshed
 
 
-def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_threads=1, z_threads=1):
+def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1):
     rng = random.Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1159,7 +1194,7 @@ def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_thread
               get_switch_blocks(instance))
 
     path = cfg.generate_path(rng, path_length)
-    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads) 
+    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups) 
 
 
 def parse_args():
@@ -1189,6 +1224,15 @@ def parse_args():
     
     parser.add_argument("--z-threads", type=int, default=1, 
                         help='Number of threads in the z dimension')
+    
+    parser.add_argument("--x-workgroups", type=int, default=1, 
+                        help='Number of workgroups in the x dimension')
+    
+    parser.add_argument("--y-workgroups", type=int, default=1, 
+                        help='Number of workgroups in the y dimension')
+    
+    parser.add_argument("--z-workgroups", type=int, default=1, 
+                        help='Number of workgroups in the z dimension')
 
     args = parser.parse_args()
 
@@ -1199,7 +1243,7 @@ def parse_args():
 def main():
     args = parse_args()
     print(f"Fleshing with seed {args.seed}")
-    asm = fleshout(args.xml, path_length=args.l, seed=args.seed, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads)
+    asm = fleshout(args.xml, path_length=args.l, seed=args.seed, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups)
     print('\n')
     print(asm[0])
 
