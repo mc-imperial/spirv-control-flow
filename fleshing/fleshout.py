@@ -583,6 +583,7 @@ class CFG:
         self.conditional_blocks_id = []
         self.switch2edges: Dict[str, List[int]] = {k: [] for k in self.switch_blocks}
         self.array_sizes = {}
+        self.local_array_sizes = {}
         self.id_to_label = dict(zip(self.label_to_id.values(), self.label_to_id.keys()))
 
 
@@ -793,14 +794,30 @@ class CFG:
             result += '               %output_index = OpVariable %local_int_ptr Function %constant_0\n'
             for block in self.conditional_blocks_id:
                 result += '               %directions_' + str(block) + '_index = OpVariable %local_int_ptr Function %constant_0\n'
+
+            result += '\n               %local_invocation_idx = OpLoad %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx_var\n'
+            for block in self.conditional_blocks_id:
+                result += '               %directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes[block]) + '\n'
+            result += '               %output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes['output']) + '\n'
+
+            for block in self.conditional_blocks_id:
+                result += '               OpStore %directions_' + str(block) + '_index %directions_' + str(block) + '_offset\n' 
+            result += '               OpStore %output_index %output_offset\n'
+
             result += '\n\n'
 
         if int(block_id) in id_path:
 
+            if int(block_id) == id_path[-1]:
+                assert label not in self.jump_relation
+                output_increment = 2
+            else:
+                output_increment = 1
+
             result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n' + \
                       indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
                       '               OpStore %temp_' + block_id + '_1 %constant_' + block_id + '\n' + \
-                      indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_1\n' + \
+                      indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n' + \
                       '               OpStore %output_index %temp_' + block_id + '_2\n'
 
             if int(block_id) in self.conditional_blocks_id:
@@ -849,8 +866,11 @@ class CFG:
                 result += " {0} %{1}".format(index, self.get_block_id(self.jump_relation[label][index]))
         return result + "\n"
 
+    @staticmethod
+    def compute_num_threads(x_threads: int, y_threads: int, z_threads: int) -> int:
+        return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
-    def fleshout(self, path, prng, seed) -> str:
+    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -869,16 +889,27 @@ class CFG:
         all_blocks_id.sort()
         # add constants: 0: to initialize counter variables to 0
         #                1: for incrementing counter variables
-        #                2, 3...: for declaring the sizes of the input and output arrays
-        new_constants = {0,1}.union(set(all_blocks_id))
- 
+        #                2: for incrementing the last output index
+        new_constants = {0,1,2}.union(set(all_blocks_id))
+
+        new_constants.update([x_threads, y_threads, z_threads])
+        num_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
+
         # find the sizes of the input arrays
         for id in set(id_path):
             if id in self.conditional_blocks_id:
-                self.array_sizes[id] = id_path.count(id)
-                new_constants.add(id_path.count(id))
-        self.array_sizes['output'] = len(id_path)
-        new_constants.add(len(id_path))
+                direction_size = id_path.count(id)
+                total_direction_size = direction_size * num_threads
+                self.local_array_sizes[id] = direction_size 
+                self.array_sizes[id] = total_direction_size
+                new_constants.add(direction_size)
+                new_constants.add(total_direction_size)
+        output_length = len(id_path) + 1
+        total_output_length = output_length * num_threads
+        self.local_array_sizes['output'] = output_length
+        self.array_sizes['output'] = total_output_length
+        new_constants.add(output_length)
+        new_constants.add(total_output_length)
 
         # types_variables is used to declare various types and variables for storage buffers.
         types_variables = ''
@@ -991,7 +1022,7 @@ class CFG:
                     else:
                         sh_directions[label_id] = self.switch2edges[label]
             end += ' BUFFER directions_{0} DATA_TYPE uint32 STD430 DATA {1} END\n'\
-                .format(label_id, ' '.join(  [str(int) for int in sh_directions[label_id]]  )    )
+                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads))
 
 
         end += """
@@ -1018,10 +1049,10 @@ class CFG:
         for label in conditional_blocks_in_path:
             label_id = self.label_to_id[label]
             end += ' EXPECT directions_{0} IDX 0 EQ {1}\n' \
-                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]]))
+                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads))
 
         end += ' EXPECT output IDX 0 EQ {0}\n' \
-            .format(' '.join([str(int) for int in id_path]))
+            .format(' '.join(([str(int) for int in id_path] + [str(0)]) * num_threads))
 
 
 
@@ -1049,13 +1080,15 @@ SHADER compute compute_shader SPIRV-ASM
 
                OpCapability Shader
                OpMemoryModel Logical GLSL450
-               OpEntryPoint GLCompute %{0} "main"
-               OpExecutionMode %{0} LocalSize 1 1 1
+               OpEntryPoint GLCompute %{0} "main" %local_invocation_idx_var
+               OpExecutionMode %{0} LocalSize {16} {17} {18}
                
                ; Below, we declare various types and variables for storage buffers.
                ; These decorations tell SPIR-V that the types and variables relate to storage buffers
 
 {11}
+               OpDecorate %local_invocation_idx_var BuiltIn LocalInvocationIndex
+
 
           %{1} = OpTypeVoid
           %{2} = OpTypeFunction %{1}
@@ -1069,6 +1102,8 @@ SHADER compute compute_shader SPIRV-ASM
                ; Declaration of storage buffers for the {8} directions and the output
                
 {13}
+               %input_int_ptr = OpTypePointer Input %{4}
+               %local_invocation_idx_var = OpVariable %input_int_ptr Input
 
           %{0} = OpFunction %{1} None %{2}
 """.format(self.MAIN_FUNCTION_ID,
@@ -1086,7 +1121,10 @@ SHADER compute compute_shader SPIRV-ASM
                    constants2string, # {12}
                    storage_buffers, # {13}
                    seed, # {14}
-                   len(path)) # {15}
+                   len(path), # {15}
+                   x_threads, # {16}
+                   y_threads, # {17}
+                   z_threads) # {18}
         result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
@@ -1094,7 +1132,7 @@ SHADER compute compute_shader SPIRV-ASM
         return result_fleshed
 
 
-def fleshout(xml_file, path_length=sys.maxsize, seed=None):
+def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_threads=1, z_threads=1):
     rng = random.Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1121,7 +1159,7 @@ def fleshout(xml_file, path_length=sys.maxsize, seed=None):
               get_switch_blocks(instance))
 
     path = cfg.generate_path(rng, path_length)
-    return cfg.to_string(), cfg.fleshout(path, rng, seed)
+    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads) 
 
 
 def parse_args():
@@ -1142,6 +1180,15 @@ def parse_args():
                         help='The seed to use for the PNG. This can be used to reproduce paths. '
                         'To guarantee reproducibility the seed should be paired with the exact same '
                         'path length argument.')
+    
+    parser.add_argument("--x-threads", type=int, default=1, 
+                        help='Number of threads in the x dimension')
+    
+    parser.add_argument("--y-threads", type=int, default=1, 
+                        help='Number of threads in the y dimension')
+    
+    parser.add_argument("--z-threads", type=int, default=1, 
+                        help='Number of threads in the z dimension')
 
     args = parser.parse_args()
 
@@ -1152,7 +1199,7 @@ def parse_args():
 def main():
     args = parse_args()
     print(f"Fleshing with seed {args.seed}")
-    asm = fleshout(args.xml, path_length=args.l, seed=args.seed)
+    asm = fleshout(args.xml, path_length=args.l, seed=args.seed, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads)
     print('\n')
     print(asm[0])
 
