@@ -782,7 +782,23 @@ class CFG:
         return rand_path_prefix
 
 
-    def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size) -> str:
+    @staticmethod
+    def find_nth_occurrence(haystack: str, needle: str, occurrence: int) -> int:
+        idx = haystack.find(needle)
+        if idx < 0:
+            return -1
+        return idx if occurrence <= 1 else idx + 1 + CFG.find_nth_occurrence(haystack[idx+1:], needle, occurrence-1)
+
+
+    @staticmethod
+    def add_barrier(block_output: str, prng) -> str:
+        barrier_line_offset = prng.randint(2, block_output.count("\n"))
+        line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
+        barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Device scope\n"
+        return block_output[:line_idx+1] + barrier_line + block_output[line_idx+1:]
+
+
+    def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks) -> str:
         block_id = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
@@ -858,6 +874,9 @@ class CFG:
                     result += indent1 + '%temp_' + block_id + '_7 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_3 %constant_1\n' + \
                               '               OpStore %directions_' + block_id + '_index %temp_' + block_id + '_7\n'
 
+            # include barriers at any location before the final jump/return
+            if label in barrier_blocks:
+                result = CFG.add_barrier(result, prng)
 
         if label in self.loop_header_blocks:
             assert num_successors == 1 or num_successors == 2
@@ -898,7 +917,7 @@ class CFG:
     def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int, ) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
-    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups) -> str:
+    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -991,6 +1010,9 @@ class CFG:
         for i in new_constants:
             constants2string += tab + '%constant_' + str(i) + ' = OpConstant %' + str(self.UINT_TYPE_ID) + ' ' + str(i) + '\n'
 
+        barrier_blocks = set()
+        if include_barriers:
+            barrier_blocks.update([block for block in path if block != self.entry_block and prng.choice([True, False])])    
         path2string = ''
         occurrences = {}
         for block in self.switch_blocks:
@@ -1003,6 +1025,10 @@ class CFG:
                 b = '<' + str(block_id) + '>'
             else:
                 b = str(block_id)
+            
+            if block in barrier_blocks:
+                b = 'b(' + b + ')'
+
             if block not in self.switch_blocks:
                 path2string += b + ' -> '
             else:
@@ -1160,14 +1186,15 @@ SHADER compute compute_shader SPIRV-ASM
                    x_threads, # {16}
                    y_threads, # {17}
                    z_threads) # {18}
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, x_workgroups, y_workgroups, num_threads) for block in self.topological_ordering])
+
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, x_workgroups, y_workgroups, num_threads, prng, barrier_blocks) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
         return result_fleshed
 
 
-def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1):
+def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True):
     rng = random.Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1194,7 +1221,8 @@ def fleshout(xml_file, path_length=sys.maxsize, seed=None, x_threads=1, y_thread
               get_switch_blocks(instance))
 
     path = cfg.generate_path(rng, path_length)
-    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups) 
+
+    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers) 
 
 
 def parse_args():
