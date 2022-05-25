@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import amber_utils
 import logging
 import os
 import subprocess
@@ -41,18 +42,14 @@ def execute_amber_on_host(amber_path: Path, amber_file_path: Path) -> AmberResul
 
 def execute_amber_folder(amber_exec_path: Path, amber_folder: Path, use_android: bool, android_serial: Optional[str]):
     amber_results = []
-    for root, _, files in os.walk(amber_folder):
-        for file in files:
-            if not file.endswith(".amber"):
-                continue
-            amber_file_path = Path(os.path.join(root, file))
-            logger.info(f"Executing {amber_file_path}")
-            res = execute_amber_on_android(android_serial, amber_file_path) \
-                if use_android \
-                else execute_amber_on_host(amber_exec_path, amber_file_path)
-            amber_results.append(res)
-            if res.return_code != 0:
-                logger.info(res)
+    for file_num, amber_file_path in enumerate(amber_utils.get_amber_files(amber_folder)):
+        logger.info(f"Execution count {file_num}. Executing {amber_file_path}")
+        res = execute_amber_on_android(android_serial, amber_file_path) \
+            if use_android \
+            else execute_amber_on_host(amber_exec_path, amber_file_path)
+        amber_results.append(res)
+        if res.return_code != 0:
+            logger.info(res)
     return amber_results
 
 
