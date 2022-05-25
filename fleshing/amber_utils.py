@@ -73,6 +73,7 @@ def deduplicate(amber_folder):
             delete_file(file_path)
             continue
         paths[parent_name].add(path)
+    print(f"Removed {duplicate_count} paths in total")
 
 
 def extract_asm(amber_file: Path) -> str:
