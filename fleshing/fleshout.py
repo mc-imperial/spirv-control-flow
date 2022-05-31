@@ -797,7 +797,7 @@ class CFG:
     def add_barrier(block_output: str, prng) -> str:
         barrier_line_offset = prng.randint(2, block_output.count("\n"))
         line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
-        barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Device scope\n"
+        barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
         return block_output[:line_idx+1] + barrier_line + block_output[line_idx+1:]
 
 
@@ -847,7 +847,7 @@ class CFG:
                 result += '               OpStore %directions_' + str(block) + '_index %directions_' + str(block) + '_offset\n' 
             result += '               OpStore %output_index %output_offset\n'
 
-            result += '\n\n'
+            result += '\n'
 
         if int(block_id) in id_path:
 
