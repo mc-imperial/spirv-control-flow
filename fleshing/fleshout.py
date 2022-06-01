@@ -882,8 +882,10 @@ class CFG:
 
             result += indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
                       '               OpStore %temp_' + block_id + '_1 %constant_' + block_id + '\n' + \
-                      indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n' + \
-                      '               OpStore %output_index %temp_' + block_id + '_2\n'
+                      indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n'
+
+            if not include_op_phi:
+                result += '               OpStore %output_index %temp_' + block_id + '_2\n'
 
             if int(block_id) in self.conditional_blocks_id:
                 result += indent1 + '%temp_' + block_id + '_3 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + block_id + '_index\n' + \
