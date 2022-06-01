@@ -86,22 +86,22 @@ def parse_args():
     seeds_or_repeat_group.add_argument("--repeats", type=int, help='The number of times fleshing is run per xml file.')
 
     parser.add_argument("--x-threads", type=int, default=1, 
-                        help='Number of threads in the x dimension')
+                        help='The maximum number of threads in the x dimension')
     
     parser.add_argument("--y-threads", type=int, default=1, 
-                        help='Number of threads in the y dimension')
+                        help='The maximum number of threads in the y dimension')
     
     parser.add_argument("--z-threads", type=int, default=1, 
-                        help='Number of threads in the z dimension')
+                        help='The maximum number of threads in the z dimension')
     
     parser.add_argument("--x-workgroups", type=int, default=1, 
-                        help='Number of workgroups in the x dimension')
+                        help='The maximum number of workgroups in the x dimension')
     
     parser.add_argument("--y-workgroups", type=int, default=1, 
-                        help='Number of workgroups in the y dimension')
+                        help='The maximum number of workgroups in the y dimension')
     
     parser.add_argument("--z-workgroups", type=int, default=1, 
-                        help='Number of workgroups in the z dimension')
+                        help='The maximum number of workgroups in the z dimension')
     
     parser.add_argument("--op-phi", action='store_true',
                         help='Use OpPhi instructions for output and directions index variables')
