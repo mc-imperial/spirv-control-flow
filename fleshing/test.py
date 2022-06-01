@@ -61,9 +61,13 @@ def generate_xml_files(args):
     run_cts_scraper(args)
     run_xml_generator(args)
 
-def run_fleshing(xml_path, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1):
+def run_fleshing(xml_path, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=False, include_op_phi=False):
     program_path = os.path.join(os.path.dirname(__file__), "fleshing_runner.py")
     fleshing_cmd = ["python3", program_path, xml_path, "--fleshing-seeds"] + [str(seed) for seed in seeds] + ["--x-threads", str(x_threads), "--y-threads", str(y_threads), "--z-threads", str(z_threads), "--x-workgroups", str(x_workgroups), "--y-workgroups", str(y_workgroups), "--z-workgroups", str(z_workgroups)]
+    if include_barriers:
+        fleshing_cmd += ["--simple-barriers"]
+    if include_op_phi:
+        fleshing_cmd += ["--op-phi"]
 
     print(f"Running {fleshing_cmd}")
     fleshing_result = subprocess.run(fleshing_cmd, capture_output=True, text=True)
@@ -94,7 +98,7 @@ def run(args):
     else:
         print("Skipping xml generation...")
     
-    run_fleshing(args.path_to_xml_files, FLESHING_SEEDS, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups)
+    run_fleshing(args.path_to_xml_files, FLESHING_SEEDS, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups, include_barriers=args.simple_barriers, include_op_phi=args.op_phi)
     amber_utils.deduplicate(args.path_to_xml_files)
     run_amber(args.path_to_amber, args.path_to_xml_files) # amber files are generated in same folder as xml
 
@@ -133,6 +137,8 @@ def parse_args():
     optional.add_argument("--x-workgroups", type=int, default=1, help='Number of workgroups in the x dimension')
     optional.add_argument("--y-workgroups", type=int, default=1, help='Number of workgroups in the y dimension')
     optional.add_argument("--z-workgroups", type=int, default=1, help='Number of workgroups in the z dimension')
+    optional.add_argument("--op-phi", action='store_true', help='Use OpPhi instructions for output and directions index variables')
+    optional.add_argument("--simple-barriers", action='store_true', help='Add barriers along a single path. If there are multiple threads, all threads follow that same path.')
 
     return parser.parse_args()
 

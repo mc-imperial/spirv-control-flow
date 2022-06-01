@@ -29,7 +29,7 @@ def get_test_folders(xml_folder):
     return [test_folder for test_folder in next(os.walk(xml_folder))[1]]
 
 
-def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1):
+def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=False, include_op_phi=False):
     configure_logging()
     files_with_errors = []
     files_with_terminal_node_issues = []
@@ -43,7 +43,7 @@ def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_wor
         for seed in seeds:
             logger.info(f"Fleshing {test_file} with seed {seed}")
             try:
-                _, amber_program_str = fleshout.fleshout(test_file, seed=seed, x_threads=x_threads, y_threads=y_threads, z_threads=z_threads, x_workgroups=x_workgroups, y_workgroups=y_workgroups, z_workgroups=z_workgroups)
+                _, amber_program_str = fleshout.fleshout(test_file, seed=seed, x_threads=x_threads, y_threads=y_threads, z_threads=z_threads, x_workgroups=x_workgroups, y_workgroups=y_workgroups, z_workgroups=z_workgroups, include_barriers=include_barriers, include_op_phi=include_op_phi)
                 amber_file_path = test_file.replace(".xml", f"_{seed}") + ".amber"
                 with open(amber_file_path, 'w') as amber_file:
                     amber_file.write(amber_program_str)
@@ -102,6 +102,12 @@ def parse_args():
     
     parser.add_argument("--z-workgroups", type=int, default=1, 
                         help='Number of workgroups in the z dimension')
+    
+    parser.add_argument("--op-phi", action='store_true',
+                        help='Use OpPhi instructions for output and directions index variables')
+    
+    parser.add_argument("--simple-barriers", action='store_true', 
+                        help='Add barriers along a single path. If there are multiple threads, all threads follow that same path.')
 
     args = parser.parse_args()
 
@@ -147,7 +153,7 @@ def main():
     logger.info(f"Fleshing seeds: {args.fleshing_seeds}") 
 
     logger.info("Fleshing...")
-    run_fleshing(xml_folder, args.fleshing_seeds, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups)
+    run_fleshing(xml_folder, args.fleshing_seeds, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups, include_barriers=args.simple_barriers, include_op_phi=args.op_phi)
 
     logger.info(f"runner seed: {args.runner_seed}")
     logger.info(f"fleshing seeds: {args.fleshing_seeds}")
