@@ -16,7 +16,7 @@ import sys
 import random
 import xml.etree.ElementTree as elementTree
 import argparse
-from collections import deque
+from collections import defaultdict, deque
 
 from typing import Deque, Dict, List, Set
 
@@ -544,6 +544,12 @@ def parallel_edges(instance, a, b):
     return False
 
 
+def compute_reverse_graph(graph):
+    reverse = defaultdict(set)
+    for node in graph:
+        for neighbour in graph[node]:
+            reverse[neighbour].add(node)
+    return reverse
 
 
 class CFG:
@@ -566,6 +572,7 @@ class CFG:
                  selection_header_blocks: Set[str],
                  switch_blocks: Set[str]):
         self.jump_relation = jump_relation
+        self.reverse_graph = compute_reverse_graph(jump_relation)
         self.merge_relation = merge_relation
         self.continue_relation = continue_relation
         self.entry_block = entry_block
@@ -794,14 +801,14 @@ class CFG:
 
 
     @staticmethod
-    def add_barrier(block_output: str, prng) -> str:
-        barrier_line_offset = prng.randint(2, block_output.count("\n"))
+    def add_barrier(block_output: str, start_line: int, prng) -> str:
+        barrier_line_offset = prng.randint(start_line, block_output.count("\n"))
         line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
         barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
         return block_output[:line_idx+1] + barrier_line + block_output[line_idx+1:]
 
 
-    def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks) -> str:
+    def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks, include_op_phi) -> str:
         block_id = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
@@ -849,16 +856,31 @@ class CFG:
 
             result += '\n'
 
+        predecessors = self.reverse_graph[label]
+        num_op_phi = 0
         if int(block_id) in id_path:
-
             if int(block_id) == id_path[-1]:
                 assert label not in self.jump_relation
                 output_increment = 2
             else:
                 output_increment = 1
 
-            result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n' + \
-                      indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
+            if include_op_phi and label != self.entry_block:
+                num_op_phi += 1
+                result += indent1 + '%temp_' + block_id + '_0 = OpPhi %' + str(self.UINT_TYPE_ID)
+                assert len(predecessors) > 0
+                for predecessor in predecessors:
+                    pred_id = self.label_to_id[predecessor]
+                    if int(pred_id) in id_path:
+                        result += ' %temp_' + str(pred_id) + '_2 %' + str(pred_id)
+                    else:
+                        result += ' %dummy_val %' + str(pred_id)
+                result += '\n'
+
+            else:
+                result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n'
+
+            result += indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
                       '               OpStore %temp_' + block_id + '_1 %constant_' + block_id + '\n' + \
                       indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n' + \
                       '               OpStore %output_index %temp_' + block_id + '_2\n'
@@ -879,7 +901,7 @@ class CFG:
 
             # include barriers at any location before the final jump/return
             if label in barrier_blocks:
-                result = CFG.add_barrier(result, prng)
+                result = CFG.add_barrier(result, 2 + num_op_phi, prng)
 
         if label in self.loop_header_blocks:
             assert num_successors == 1 or num_successors == 2
@@ -920,7 +942,7 @@ class CFG:
     def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int, ) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
-    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers) -> str:
+    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers, include_op_phi) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -1010,6 +1032,7 @@ class CFG:
                 new_constants.add(literal_of_target)
 
         constants2string = '\n'
+        constants2string += tab + f"%dummy_val = OpConstant %{str(self.UINT_TYPE_ID)} {str(666)}\n"
         for i in new_constants:
             constants2string += tab + '%constant_' + str(i) + ' = OpConstant %' + str(self.UINT_TYPE_ID) + ' ' + str(i) + '\n'
 
@@ -1189,15 +1212,15 @@ SHADER compute compute_shader SPIRV-ASM
                    x_threads, # {16}
                    y_threads, # {17}
                    z_threads) # {18}
-
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, x_workgroups, y_workgroups, num_threads, prng, barrier_blocks) for block in self.topological_ordering])
+        
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, x_workgroups, y_workgroups, num_threads, prng, barrier_blocks, include_op_phi) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
         return result_fleshed
 
 
-def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True):
+def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True):
     rng = random.Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1225,7 +1248,7 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
 
     path = cfg.generate_path(rng, path_length)
 
-    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers) 
+    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers, include_op_phi) 
 
 
 def parse_args():
