@@ -1308,6 +1308,12 @@ def parse_args():
     
     parser.add_argument("--z-workgroups", type=int, default=1, 
                         help='Number of workgroups in the z dimension')
+    
+    parser.add_argument("--op-phi", action='store_true',
+                        help='Use OpPhi instructions for output and directions index variables')
+    
+    parser.add_argument("--simple-barriers", action='store_true', 
+                        help='Add barriers along a single path. If there are multiple threads, all threads follow that same path.')
 
     args = parser.parse_args()
 
@@ -1318,7 +1324,7 @@ def parse_args():
 def main():
     args = parse_args()
     print(f"Fleshing with seed {args.seed}")
-    asm = fleshout(args.xml, path_length=args.l, seed=args.seed, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups)
+    asm = fleshout(args.xml, path_length=args.l, seed=args.seed, x_threads=args.x_threads, y_threads=args.y_threads, z_threads=args.z_threads, x_workgroups=args.x_workgroups, y_workgroups=args.y_workgroups, z_workgroups=args.z_workgroups, include_barriers=args.simple_barriers, include_op_phi=args.op_phi)
     print('\n')
     print(asm[0])
 
