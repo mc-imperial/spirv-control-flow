@@ -582,7 +582,6 @@ class CFG:
         self.switch_blocks = switch_blocks
         self.all_blocks = {*self.regular_blocks, *self.loop_header_blocks, *self.selection_header_blocks}
         self.label_to_id: Dict[str, int] = {}
-        self.id_to_label = {}
         self.next_id = self.ENTRY_BLOCK_ID
         assert len(self.loop_header_blocks.intersection(self.selection_header_blocks)) == 0
         assert len(self.loop_header_blocks.intersection(self.switch_blocks)) == 0
@@ -594,7 +593,6 @@ class CFG:
         self.switch2edges: Dict[str, List[int]] = {k: [] for k in self.switch_blocks}
         self.array_sizes = {}
         self.local_array_sizes = {}
-        self.id_to_label = dict(zip(self.label_to_id.values(), self.label_to_id.keys()))
 
 
     def compute_structured_jump_relation(self) -> Dict[str, List[str]]:
@@ -806,16 +804,42 @@ class CFG:
         line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
         barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
         return block_output[:line_idx+1] + barrier_line + block_output[line_idx+1:]
+    
+
+    def create_op_phi_instructions(self, label, predecessors, num_successors, path_ids, indent1):
+        assert len(predecessors) > 0
+        block_id = self.get_block_id(label)
+        output_phi = indent1 + '%temp_' + block_id + '_0 = OpPhi %' + str(self.UINT_TYPE_ID)
+        for predecessor in predecessors:
+            pred_id = self.label_to_id[predecessor]
+            if int(pred_id) in path_ids:
+                output_phi += ' %temp_' + str(pred_id) + '_2 %' + str(pred_id)
+            else:
+                output_phi += ' %dummy_val %' + str(pred_id)
+        output_phi += '\n'
+
+        input_phi = ''
+        if num_successors > 1 or label in self.switch_blocks:
+            input_phi += indent1 + '%temp_' + block_id + '_3 = OpPhi %' + str(self.UINT_TYPE_ID)
+            for predecessor in predecessors:
+                pred_id = self.label_to_id[predecessor]
+                if int(pred_id) in path_ids:
+                    input_phi += ' %' + str(pred_id) + '_target_' + str(block_id) + ' %' + str(pred_id)
+                else:
+                    input_phi += ' %dummy_val %' + str(pred_id)
+            input_phi += '\n'
+        return output_phi + input_phi   
 
 
     def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks, include_op_phi) -> str:
+        path_ids = set(id_path)
         block_id = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
         num_successors: int = 0 if label not in self.jump_relation else len(self.jump_relation[label])
         result = "\n{0} = OpLabel ; {1}\n".format(indent0, label)
-        condition = 'temp_' + block_id + '_6' if int(block_id) in id_path else self.TRUE_CONSTANT_ID
-        selector = 'temp_' + block_id + '_5' if int(block_id) in id_path else self.ZERO_CONSTANT_ID
+        condition = 'temp_' + block_id + '_6' if int(block_id) in path_ids else self.TRUE_CONSTANT_ID
+        selector = 'temp_' + block_id + '_5' if int(block_id) in path_ids else self.ZERO_CONSTANT_ID
         if label == self.entry_block:
             result += '               %output_index = OpVariable %local_int_ptr Function %constant_0\n'
             for block in self.conditional_blocks_id:
@@ -858,28 +882,14 @@ class CFG:
 
         predecessors = self.reverse_graph[label]
         num_op_phi = 0
-        if int(block_id) in id_path:
-            if int(block_id) == id_path[-1]:
-                assert label not in self.jump_relation
-                output_increment = 2
-            else:
-                output_increment = 1
-
+        if int(block_id) in path_ids:
             if include_op_phi and label != self.entry_block:
-                num_op_phi += 1
-                result += indent1 + '%temp_' + block_id + '_0 = OpPhi %' + str(self.UINT_TYPE_ID)
-                assert len(predecessors) > 0
-                for predecessor in predecessors:
-                    pred_id = self.label_to_id[predecessor]
-                    if int(pred_id) in id_path:
-                        result += ' %temp_' + str(pred_id) + '_2 %' + str(pred_id)
-                    else:
-                        result += ' %dummy_val %' + str(pred_id)
-                result += '\n'
-
+                result += self.create_op_phi_instructions(label, predecessors, num_successors, path_ids, indent1)        
+                num_op_phi += 2
             else:
                 result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n'
 
+            output_increment = 2 if int(block_id) == id_path[-1] else 1
             result += indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
                       '               OpStore %temp_' + block_id + '_1 %constant_' + block_id + '\n' + \
                       indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n'
@@ -888,8 +898,10 @@ class CFG:
                 result += '               OpStore %output_index %temp_' + block_id + '_2\n'
 
             if int(block_id) in self.conditional_blocks_id:
-                result += indent1 + '%temp_' + block_id + '_3 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + block_id + '_index\n' + \
-                          indent1 + '%temp_' + block_id + '_4 = OpAccessChain %storage_buffer_int_ptr %directions_' + block_id + '_variable %constant_0 %temp_' + block_id + '_3\n' + \
+                if not include_op_phi or label == self.entry_block:
+                    result += indent1 + '%temp_' + block_id + '_3 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + block_id + '_index\n'
+
+                result += indent1 + '%temp_' + block_id + '_4 = OpAccessChain %storage_buffer_int_ptr %directions_' + block_id + '_variable %constant_0 %temp_' + block_id + '_3\n' + \
                           indent1 + '%temp_' + block_id + '_5 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_4\n'
 
                 if label not in self.switch_blocks:
@@ -900,6 +912,12 @@ class CFG:
                 else:
                     result += indent1 + '%temp_' + block_id + '_7 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_3 %constant_1\n' + \
                               '               OpStore %directions_' + block_id + '_index %temp_' + block_id + '_7\n'
+
+
+            if include_op_phi and num_successors > 0:
+                successors = set(self.get_block_id(node) for node in self.jump_relation[label] if int(self.get_block_id(node)) in path_ids and int(self.get_block_id(node)) in self.conditional_blocks_id)
+                for successor in successors:
+                    result += indent1 + '%' + block_id + '_target_' + str(successor) + ' = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + str(successor) + '_index\n'
 
             # include barriers at any location before the final jump/return
             if label in barrier_blocks:
@@ -916,6 +934,7 @@ class CFG:
                 self.get_block_id(self.merge_relation[label]))
         else:
             assert num_successors <= 2 # Q: How can a non loop/selection header block have multiple successors? Aren't OpLoopMerge and OpSelectionMerge the only merge instructions?
+        
         if label not in self.jump_relation:
             assert num_successors == 0
             result += "               OpReturn" # Exit nodes are defined as having no successors. Can we use an alternative to OpReturn in some cases to make fleshing more interesting?
