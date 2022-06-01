@@ -1269,7 +1269,17 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
 
     path = cfg.generate_path(rng, path_length)
 
-    return cfg.to_string(), cfg.fleshout(path, rng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers, include_op_phi) 
+    return cfg.to_string(), cfg.fleshout(path, 
+                                         rng, 
+                                         seed, 
+                                         rng.randint(1, x_threads), 
+                                         rng.randint(1, y_threads), 
+                                         rng.randint(1, z_threads),
+                                         rng.randint(1, x_workgroups), 
+                                         rng.randint(1, y_workgroups), 
+                                         rng.randint(1, z_workgroups),  
+                                         include_barriers, 
+                                         include_op_phi) 
 
 
 def parse_args():
@@ -1292,22 +1302,22 @@ def parse_args():
                         'path length argument.')
     
     parser.add_argument("--x-threads", type=int, default=1, 
-                        help='Number of threads in the x dimension')
+                        help='The maximum number of threads in the x dimension')
     
     parser.add_argument("--y-threads", type=int, default=1, 
-                        help='Number of threads in the y dimension')
+                        help='The maximum number of threads in the y dimension')
     
     parser.add_argument("--z-threads", type=int, default=1, 
-                        help='Number of threads in the z dimension')
+                        help='The maximum number of threads in the z dimension')
     
     parser.add_argument("--x-workgroups", type=int, default=1, 
-                        help='Number of workgroups in the x dimension')
+                        help='The maximum number of workgroups in the x dimension')
     
     parser.add_argument("--y-workgroups", type=int, default=1, 
-                        help='Number of workgroups in the y dimension')
+                        help='The maximum number of workgroups in the y dimension')
     
     parser.add_argument("--z-workgroups", type=int, default=1, 
-                        help='Number of workgroups in the z dimension')
+                        help='The maximum number of workgroups in the z dimension')
     
     parser.add_argument("--op-phi", action='store_true',
                         help='Use OpPhi instructions for output and directions index variables')
