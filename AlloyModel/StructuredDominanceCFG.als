@@ -754,23 +754,34 @@ pred CaseConstructBranchedToByAtMostOneOther
 
 /**
   *  "...if Target T1 branches to Target T2, or if Target T1 branches to the Default
-  *   and the Default branches to Target T2, then T1 must immediately precede T2
-  *   in the list of the OpSwitch Target operands"
-  *   (The Khronos Group, 2021, p.29)
-  *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
+  *  and the Default branches to Target T2, then T1 must immediately precede T2
+  *  in the list of the OpSwitch Target operands"
+  *  (The Khronos Group, 2021, p.29)
+  *  https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
   *
   *
-  * 	The above rule is adjusted as follows:
-  *  "if Target T1 branches to Target T2, or if Target T1 branches to the Default
-  *   and the Default branches to Target T2, then T1 (or the substring - i.e., the
-  *	consecutive run - of occurrences of T1 in case of multiple occurrences of T1 
-  *   - ignoring literals and just focusing on labels) must immediately precede T2 
-  *	in the list of the OpSwitch Target operands
-  *   see https://gitlab.khronos.org/spirv/SPIR-V/-/issues/673
+  *  The above rule is adjusted as follows:
   *
-  *  The above rule is further refined so that T1/T2/Default are replaced by 
-  *  "the case construct headed by OpSwitch Target T1/T2/Default".
-  *  see https://gitlab.khronos.org/spirv/SPIR-V/-/issues/674
+  *  (a) if 'T1' and 'T2' appear as labels of targets in the **OpSwitch**
+  *      instruction and the case construct defined by 'T1' branches to
+  *      the case construct defined by 'T2' then the last target with label 'T1' 
+  *      must immediately precede the first target with label 'T2' in the list of 
+  *      *OpSwitch* 'Target' operands
+  *
+  *  (b) if 'T1' and 'T2' appear as labels of targets in the **OpSwitch**
+  *      instruction and the case construct defined by 'T1' branches to the
+  *      'Default' case construct of the **OpSwitch** which in turn
+  *      branches to the case construct defined by 'T2', then either:
+  *
+  *      (i)   the block that defines the 'Default' case construct must
+  *            appear as a target label in the **OpSwitch** instruction, or
+  *      (ii)  the last target with label 'T1' must immediately precede the
+  *            first target with label 'T2' in the list of **OpSwitch**
+  *           'Target' operands
+  *
+  *  (c) for any label 'T', all targets with label 'T' must appear consecutively 
+  *      in the list of *OpSwitch* 'Target' operands
+  *
   */
 pred OrderOfOpSwitchTargetOperands 
 {
@@ -785,15 +796,17 @@ pred OrderOfOpSwitchTargetOperands
 													(
 														( some t1 <:jumpSet:> T2 ) ||
 																							   (
-																									(some t1 <:jumpSet:> default) and
+																									(some t1 <:jumpSet:> default) and 
+																									 no  ((tail.elems)&default)   and
 																									(some caseConstruct[default]<:jumpSet:>T2)
 																								)
 														)
 													)
 																
-													=> ( 	idxOf [tail, T2] = lastIdxOf [tail, T1].add[1]
-															&& ((tail).subseq [idxOf [tail, T1], lastIdxOf [tail, T1]]).elems = T1 // this checks whether the substring of occurrences of T1 is consecutive
-														)
+													=>   ( idxOf [tail, T2] = lastIdxOf [tail, T1].add[1] )
+														
+	all sw: (SwitchBlock & StructurallyReachableBlock), T: sw.jump.rest.elems | let tail = sw.jump.rest |
+  													(tail.subseq [idxOf [tail, T], lastIdxOf [tail, T]]).elems = T // this checks whether the substring of occurrences of T is consecutive
 }
 
 
