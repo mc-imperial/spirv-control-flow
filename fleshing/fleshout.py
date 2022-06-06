@@ -963,7 +963,7 @@ class CFG:
     def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int, ) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
-    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, include_barriers, include_op_phi) -> str:
+    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, barrier_blocks, include_op_phi) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -1057,9 +1057,6 @@ class CFG:
         for i in new_constants:
             constants2string += tab + '%constant_' + str(i) + ' = OpConstant %' + str(self.UINT_TYPE_ID) + ' ' + str(i) + '\n'
 
-        barrier_blocks = set()
-        if include_barriers:
-            barrier_blocks.update([block for block in path if block != self.entry_block and prng.choice([True, False])])    
         path2string = ''
         occurrences = {}
         for block in self.switch_blocks:
@@ -1241,6 +1238,9 @@ SHADER compute compute_shader SPIRV-ASM
         return result_fleshed
 
 
+def get_barrier_blocks(cfg: CFG, path: List[str], likelihood_percentage: int, rng) -> set:
+    return set([block for block in path if block != cfg.entry_block and rng.choices([True, False], [likelihood_percentage, 100-likelihood_percentage], k=1)[0]])
+
 def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True):
     rng = random.Random()
     if seed is None:
@@ -1268,6 +1268,9 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
               get_switch_blocks(instance))
 
     path = cfg.generate_path(rng, path_length)
+    barrier_blocks = set()
+    if include_barriers:
+        barrier_blocks = get_barrier_blocks(cfg, path, 20, rng)    
 
     return cfg.to_string(), cfg.fleshout(path, 
                                          rng, 
@@ -1278,7 +1281,7 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
                                          rng.randint(1, x_workgroups), 
                                          rng.randint(1, y_workgroups), 
                                          rng.randint(1, z_workgroups),  
-                                         include_barriers, 
+                                         barrier_blocks, 
                                          include_op_phi) 
 
 
