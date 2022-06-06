@@ -589,10 +589,6 @@ class CFG:
         self.structured_jump_relation: Dict[str, List[str]] = self.compute_structured_jump_relation()
         self.structured_back_edges: Dict[str, Set[str]] = self.compute_back_edges()
         self.topological_ordering: List[str] = self.compute_topological_ordering()
-        self.conditional_blocks_id = []
-        self.switch2edges: Dict[str, List[int]] = {k: [] for k in self.switch_blocks}
-        self.array_sizes = {}
-        self.local_array_sizes = {}
 
 
     def compute_structured_jump_relation(self) -> Dict[str, List[str]]:
@@ -612,6 +608,7 @@ class CFG:
                 elif structured_relation[block] not in result[block]:
                     result[block].append(structured_relation[block])
         return result
+
 
     def compute_topological_ordering(self) -> List[str]:
         # This is an implementation of Kahn’s algorithm for topological sorting.
@@ -658,6 +655,7 @@ class CFG:
         assert len(result) == len(in_degree)
         return result
 
+
     def compute_back_edges(self) -> Dict[str, Set[str]]:
         def dfs(back_edges: Dict[str, Set[str]], stack: List[str], visited: Set[str], block: str):
             assert block not in visited
@@ -680,13 +678,14 @@ class CFG:
         return result
 
 
-    def parallel_edges(a, b):
+    def parallel_edges(self, a, b):
         jump = self.jump_relation.copy()
         if a in jump:
             for block in jump[a]:
                 if block == b:
                     return jump[a].count(b)
         return 0
+
 
     def is_conditional(self, label: str):
         num_successors: int = 0 if label not in self.jump_relation else len(self.jump_relation[label])
@@ -777,6 +776,7 @@ class CFG:
 
         return result
 
+
     def generate_path(self, prng, max_path_length=MAX_PATH_LENGTH):
         exit_blocks = get_exit_blocks(self.jump_relation)
         rand_path_prefix = random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
@@ -831,7 +831,7 @@ class CFG:
         return output_phi + input_phi   
 
 
-    def block_to_string_fleshing(self, label: str, id_path: List[str], x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks, include_op_phi) -> str:
+    def block_to_string_fleshing(self, label: str, id_path: List[str], local_array_sizes, conditional_block_ids, x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks, include_op_phi) -> str:
         path_ids = set(id_path)
         block_id = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
@@ -842,7 +842,7 @@ class CFG:
         selector = 'temp_' + block_id + '_5' if int(block_id) in path_ids else self.ZERO_CONSTANT_ID
         if label == self.entry_block:
             result += '               %output_index = OpVariable %local_int_ptr Function %constant_0\n'
-            for block in self.conditional_blocks_id:
+            for block in conditional_block_ids:
                 result += '               %directions_' + str(block) + '_index = OpVariable %local_int_ptr Function %constant_0\n'
 
             result += '\n               %local_invocation_idx = OpLoad %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx_var\n'
@@ -858,23 +858,23 @@ class CFG:
             result += '               %yz_idx_component = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %y_idx_component %z_idx_component\n'
             result += '               %workgroup_idx = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %yz_idx_component %x_wg_dim\n\n'
 
-            for block in self.conditional_blocks_id:
-                result += '               %local_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes[block]) + '\n'
+            for block in conditional_block_ids:
+                result += '               %local_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(local_array_sizes[block]) + '\n'
             result += '\n'
 
-            for block in self.conditional_blocks_id:
-                result += '               %global_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(self.local_array_sizes[block] * workgroup_size) + '\n'
+            for block in conditional_block_ids:
+                result += '               %global_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(local_array_sizes[block] * workgroup_size) + '\n'
             result += '\n'
 
-            for block in self.conditional_blocks_id:
+            for block in conditional_block_ids:
                 result += '               %directions_' + str(block) + '_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %global_directions_' + str(block) + '_offset %local_directions_' + str(block) + '_offset\n'
 
-            result += '               %local_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(self.local_array_sizes['output']) + '\n'
-            result += '               %global_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(self.local_array_sizes['output'] * workgroup_size) + '\n'
+            result += '               %local_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(local_array_sizes['output']) + '\n'
+            result += '               %global_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(local_array_sizes['output'] * workgroup_size) + '\n'
             result += '               %output_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %global_output_offset %local_output_offset\n'
             result += '\n'
 
-            for block in self.conditional_blocks_id:
+            for block in conditional_block_ids:
                 result += '               OpStore %directions_' + str(block) + '_index %directions_' + str(block) + '_offset\n' 
             result += '               OpStore %output_index %output_offset\n'
 
@@ -897,7 +897,7 @@ class CFG:
             if not include_op_phi:
                 result += '               OpStore %output_index %temp_' + block_id + '_2\n'
 
-            if int(block_id) in self.conditional_blocks_id:
+            if int(block_id) in conditional_block_ids:
                 if not include_op_phi or label == self.entry_block:
                     result += indent1 + '%temp_' + block_id + '_3 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + block_id + '_index\n'
 
@@ -915,7 +915,7 @@ class CFG:
 
 
             if include_op_phi and num_successors > 0:
-                successors = set(self.get_block_id(node) for node in self.jump_relation[label] if int(self.get_block_id(node)) in path_ids and int(self.get_block_id(node)) in self.conditional_blocks_id)
+                successors = set(self.get_block_id(node) for node in self.jump_relation[label] if int(self.get_block_id(node)) in path_ids and int(self.get_block_id(node)) in conditional_block_ids)
                 for successor in successors:
                     result += indent1 + '%' + block_id + '_target_' + str(successor) + ' = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + str(successor) + '_index\n'
 
@@ -955,13 +955,16 @@ class CFG:
                 result += " {0} %{1}".format(index, self.get_block_id(self.jump_relation[label][index]))
         return result + "\n"
 
+
     @staticmethod
     def compute_num_threads(x_threads: int, y_threads: int, z_threads: int, ) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
-    
+
+
     @staticmethod
     def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int, ) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
+
 
     def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, barrier_blocks, include_op_phi) -> str:
         """
@@ -974,9 +977,9 @@ class CFG:
         id_path = [self.label_to_id[label] for label in path]
 
         conditional_blocks_in_path = self.get_conditional_blocks_in_path(path)
-        self.conditional_blocks_id = [self.label_to_id[label] for label in conditional_blocks_in_path]
-        self.conditional_blocks_id.sort()
-        conditional_blocks_id2string = [str(id) for id in self.conditional_blocks_id]
+        conditional_block_ids = [self.label_to_id[label] for label in conditional_blocks_in_path]
+        conditional_block_ids.sort()
+        conditional_blocks_id2string = [str(id) for id in conditional_block_ids]
 
         all_blocks_id = [self.label_to_id[block] for block in self.all_blocks]
         all_blocks_id.sort()
@@ -990,19 +993,21 @@ class CFG:
         num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
 
         # find the sizes of the input arrays
+        local_array_sizes = {}
+        array_sizes = {}
         for id in set(id_path):
-            if id in self.conditional_blocks_id:
+            if id in conditional_block_ids:
                 direction_size = id_path.count(id)
                 total_direction_size = direction_size * num_threads * num_workgroups
-                self.local_array_sizes[id] = direction_size 
-                self.array_sizes[id] = total_direction_size
+                local_array_sizes[id] = direction_size 
+                array_sizes[id] = total_direction_size
                 new_constants.add(direction_size)
                 new_constants.add(num_threads * direction_size)
                 new_constants.add(total_direction_size)
         output_length = len(id_path) + 1
         total_output_length = output_length * num_threads * num_workgroups
-        self.local_array_sizes['output'] = output_length
-        self.array_sizes['output'] = total_output_length
+        local_array_sizes['output'] = output_length
+        array_sizes['output'] = total_output_length
         new_constants.add(output_length)
         new_constants.add(num_threads * output_length)
         new_constants.add(total_output_length)
@@ -1011,8 +1016,8 @@ class CFG:
         types_variables = ''
         tab = '               '
 
-        for b in set(self.array_sizes.values()):
-            if self.array_sizes['output'] != b:
+        for b in set(array_sizes.values()):
+            if array_sizes['output'] != b:
                 types_variables += '\n' + tab + 'OpDecorate %size_' + str(b) + '_struct_type BufferBlock\n' + \
                                           tab + 'OpMemberDecorate %size_' + str(b) + '_struct_type 0 Offset 0\n' + \
                                           tab + 'OpDecorate %size_' + str(b) + '_array_type ArrayStride 4\n'
@@ -1023,7 +1028,7 @@ class CFG:
 
         binding = 0
         conditional_blocks_id2binding = {}
-        for i in self.conditional_blocks_id:
+        for i in conditional_block_ids:
             types_variables += '\n' + tab + 'OpDecorate %directions_' + str(i) + '_variable DescriptorSet 0\n' + \
                                       tab + 'OpDecorate %directions_' + str(i) + '_variable Binding ' + str(binding) + '\n'
             conditional_blocks_id2binding[i] = binding
@@ -1035,6 +1040,7 @@ class CFG:
 
         # for every switch find the edge number from the OpSwitch list: if there are parallel edges incident to a switch, then pick one edge randomly
         # compute successors of the block and the number of the edge which leads to the block in the path
+        switch2edges: Dict[str, List[int]] = {k: [] for k in self.switch_blocks}
         for idx, sw in enumerate(path[:-1]):
             if sw in self.switch_blocks:
                 successor_of_sw_index = idx + 1
@@ -1044,11 +1050,11 @@ class CFG:
                 parallel = self.jump_relation[sw].count(target)
                 if parallel == 1:
                     literal_of_target = self.jump_relation[sw].index(target)
-                    self.switch2edges[sw].append(literal_of_target)
+                    switch2edges[sw].append(literal_of_target)
                 else:
                     parallel_indices = [i for i, x in enumerate(self.jump_relation[sw]) if x == target]
                     literal_of_target = prng.choice(parallel_indices)
-                    self.switch2edges[sw].append(literal_of_target)
+                    switch2edges[sw].append(literal_of_target)
 
                 new_constants.add(literal_of_target)
 
@@ -1065,7 +1071,7 @@ class CFG:
         for block in path[:-1]:
             block_id = self.label_to_id[block]
             b = ''
-            if block_id in self.conditional_blocks_id:
+            if block_id in conditional_block_ids:
                 b = '<' + str(block_id) + '>'
             else:
                 b = str(block_id)
@@ -1076,20 +1082,20 @@ class CFG:
             if block not in self.switch_blocks:
                 path2string += b + ' -> '
             else:
-                path2string += b + ' -> ' + 'edge_' + str(self.switch2edges[block][occurrences[block]]) + ' -> '
+                path2string += b + ' -> ' + 'edge_' + str(switch2edges[block][occurrences[block]]) + ' -> '
                 occurrences[block] += 1
         path2string += str(self.label_to_id[path[-1]])
 
 
         storage_buffers = ''
-        for s in set(self.array_sizes.values()):
-            if self.array_sizes['output'] != s:
+        for s in set(array_sizes.values()):
+            if array_sizes['output'] != s:
                 storage_buffers += '\n' + tab + '%size_' + str(s) + '_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(s) + '\n' + \
                                           tab + '%size_' + str(s) + '_struct_type = OpTypeStruct %size_' + str(s) + '_array_type\n' + \
                                           tab + '%size_' + str(s) + '_pointer_type = OpTypePointer Uniform %size_' + str(s) + '_struct_type\n'
 
                 listOfKeys = set()
-                listOfItems = self.array_sizes.items()
+                listOfItems = array_sizes.items()
                 for item in listOfItems:
                     if item[1] == s:
                         listOfKeys.add(item[0])
@@ -1098,7 +1104,7 @@ class CFG:
                     storage_buffers += tab + '%directions_' + str(block) + '_variable = OpVariable %size_' + str(s) + '_pointer_type Uniform\n'
 
 
-        storage_buffers += '\n' + tab + '%output_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(self.array_sizes['output']) + '\n' + \
+        storage_buffers += '\n' + tab + '%output_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(array_sizes['output']) + '\n' + \
                                   tab + '%output_struct_type = OpTypeStruct %output_array_type\n' + \
                                   tab + '%output_pointer_type = OpTypePointer Uniform %output_struct_type\n'+ \
                                   tab + '%output_variable = OpVariable %output_pointer_type Uniform\n\n'+ \
@@ -1110,7 +1116,7 @@ class CFG:
 
         end = '\n\n END\n\n'
 
-        sh_directions: Dict[int, List[int]] = {k: [] for k in self.conditional_blocks_id}
+        sh_directions: Dict[int, List[int]] = {k: [] for k in conditional_block_ids}
         for label in conditional_blocks_in_path:
             label_id = self.label_to_id[label]
             for i in range(len(id_path[:-1])):
@@ -1121,7 +1127,7 @@ class CFG:
                         elif id_path[i + 1] == self.label_to_id[self.jump_relation[label][1]]:
                             sh_directions[label_id].append(0)
                     else:
-                        sh_directions[label_id] = self.switch2edges[label]
+                        sh_directions[label_id] = switch2edges[label]
             end += ' BUFFER directions_{0} DATA_TYPE uint32 STD430 DATA {1} END\n'\
                 .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads * num_workgroups))
 
@@ -1132,7 +1138,7 @@ class CFG:
  PIPELINE compute pipeline
    ATTACH compute_shader
 
-""".format(self.array_sizes['output'])
+""".format(array_sizes['output'])
 
         for label in conditional_blocks_in_path:
             label_id = self.label_to_id[label]
@@ -1231,7 +1237,7 @@ SHADER compute compute_shader SPIRV-ASM
                    y_threads, # {17}
                    z_threads) # {18}
         
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, x_workgroups, y_workgroups, num_threads, prng, barrier_blocks, include_op_phi) for block in self.topological_ordering])
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, id_path, local_array_sizes, conditional_block_ids, x_workgroups, y_workgroups, num_threads, prng, barrier_blocks, include_op_phi) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
@@ -1240,6 +1246,7 @@ SHADER compute compute_shader SPIRV-ASM
 
 def get_barrier_blocks(cfg: CFG, path: List[str], likelihood_percentage: int, rng) -> set:
     return set([block for block in path if block != cfg.entry_block and rng.choices([True, False], [likelihood_percentage, 100-likelihood_percentage], k=1)[0]])
+
 
 def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True):
     rng = random.Random()
