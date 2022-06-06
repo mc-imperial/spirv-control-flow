@@ -308,29 +308,6 @@ def get_non_doomed_graph(graph, doomed_nodes):
     return non_doomed_graph
 
 
-def random_path_of_desired_length_without_passing_through_doomed(jump_relation, start, length, prng):
-    graph = jump_relation.copy()
-    doomed = get_doomed_blocks(graph)
-    if start in doomed:
-        raise AllTerminalNodesUnreachableError()
-
-    non_doomed_graph = get_non_doomed_graph(graph, doomed)
-    return find_random_path(non_doomed_graph, start, length, [], prng)
-
-
-def find_random_path(graph, src, target_length, path, prng):
-    path.append(src)
-    if len(path) >= target_length:
-        return path
-    
-    if src not in graph:
-        assert src in get_exit_blocks(graph)
-        return path
-    
-    next_node = prng.choice(graph[src])
-    return find_random_path(graph, next_node, target_length, path, prng)
-
-
 def recover_bfs_path(src, dst, parents):
     if src == dst:
         return [dst]
@@ -341,30 +318,6 @@ def recover_bfs_path(src, dst, parents):
         dst = parents[dst]
     path.append(src)
     return path[::-1]
-
-
-def find_path_to_exit_node(graph, src, exit_nodes):
-    # BFS where termination condition is reaching an exit node.
-    # Since the graph is unweighted this will also give us the
-    # shortest path to an exit node.
-    parents = {}
-    parents[src] = None
-    queue = deque()
-    queue.append(src)
-    while queue:
-        n = queue.popleft()
-
-        if n in exit_nodes:
-            return recover_bfs_path(src, n, parents) 
-
-        if n not in graph:
-            raise TerminalNodesUnreachableFromCurrentNodeError(n, exit_nodes)
-
-        for neighbour in graph[n]:
-            if neighbour not in parents:
-                queue.append(neighbour)
-                parents[neighbour] = n
-    raise TerminalNodesUnreachableFromCurrentNodeError(src, exit_nodes)
 
 
 def dijkstra(graph, initial):
@@ -574,6 +527,7 @@ class CFG:
         self.jump_relation = jump_relation
         self.reverse_graph = compute_reverse_graph(jump_relation)
         self.merge_relation = merge_relation
+        self.merge_to_loop_header = dict([(self.merge_relation[block], block) for block in loop_header_blocks])
         self.continue_relation = continue_relation
         self.entry_block = entry_block
         self.regular_blocks = regular_blocks
@@ -775,19 +729,6 @@ class CFG:
         result += "\n               OpFunctionEnd"
 
         return result
-
-
-    def generate_path(self, prng, max_path_length=MAX_PATH_LENGTH):
-        exit_blocks = get_exit_blocks(self.jump_relation)
-        rand_path_prefix = random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
-                                                                                        self.entry_block,
-                                                                                        max_path_length,
-                                                                                        prng)
-        if rand_path_prefix[-1] not in exit_blocks:
-            rand_path_suffix = find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], exit_blocks)
-            assert rand_path_suffix is not None
-            rand_path_prefix += rand_path_suffix[1:]
-        return rand_path_prefix
 
 
     @staticmethod
@@ -1244,11 +1185,105 @@ SHADER compute compute_shader SPIRV-ASM
         return result_fleshed
 
 
+    def random_path_of_desired_length_without_passing_through_doomed(self, jump_relation, start, length, current_iteration_vector, iteration_vectors, prng):
+        graph = jump_relation.copy()
+        doomed = get_doomed_blocks(graph)
+        if start in doomed:
+            raise AllTerminalNodesUnreachableError()
+
+        non_doomed_graph = get_non_doomed_graph(graph, doomed)
+        return self.find_random_path(non_doomed_graph, start, length, [], current_iteration_vector, iteration_vectors, prng)
+
+
+    def update_iteration_vectors(self, node, current_iteration_vector, iteration_vectors):
+        if node in self.merge_to_loop_header:
+            current_iteration_vector[self.merge_to_loop_header[node]] = 0
+
+        if node in self.loop_header_blocks:
+            current_iteration_vector[node] += 1
+
+        iteration_vectors[node].append(current_iteration_vector.copy())
+
+
+    def find_random_path(self, graph, src, target_length, path, current_iteration_vector, iteration_vectors, prng):
+        path.append(src)
+
+        self.update_iteration_vectors(src, current_iteration_vector, iteration_vectors)
+
+        if len(path) >= target_length:
+            return path
+        
+        if src not in graph:
+            assert src in get_exit_blocks(graph)
+            return path
+        
+        next_node = prng.choice(graph[src])
+        return self.find_random_path(graph, next_node, target_length, path, current_iteration_vector, iteration_vectors, prng)
+
+
+    def find_path_to_exit_node(self, graph, src, exit_nodes, current_iteration_vector, iteration_vectors):
+        # BFS where termination condition is reaching an exit node.
+        # Since the graph is unweighted this will also give us the
+        # shortest path to an exit node.
+        parents = {}
+        parents[src] = None
+        queue = deque()
+        queue.append(src)
+        while queue:
+            n = queue.popleft()
+
+            if n != src:
+                self.update_iteration_vectors(n, current_iteration_vector, iteration_vectors)
+
+            if n in exit_nodes:
+                return recover_bfs_path(src, n, parents) 
+
+            if n not in graph:
+                raise TerminalNodesUnreachableFromCurrentNodeError(n, exit_nodes)
+
+            for neighbour in graph[n]:
+                if neighbour not in parents:
+                    queue.append(neighbour)
+                    parents[neighbour] = n
+        raise TerminalNodesUnreachableFromCurrentNodeError(src, exit_nodes)
+
+
+    def generate_path(self, prng, max_path_length=MAX_PATH_LENGTH):
+        exit_blocks = get_exit_blocks(self.jump_relation)
+        current_iteration_vector = dict((block, 0) for block in self.loop_header_blocks)
+        iteration_vectors = defaultdict(list)
+        rand_path_prefix = self.random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
+                                                                                             self.entry_block,
+                                                                                             max_path_length,
+                                                                                             current_iteration_vector,
+                                                                                             iteration_vectors,
+                                                                                             prng)
+        if rand_path_prefix[-1] not in exit_blocks:
+            rand_path_suffix = self.find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], exit_blocks, current_iteration_vector, iteration_vectors)
+            assert rand_path_suffix is not None
+            rand_path_prefix += rand_path_suffix[1:]
+        return rand_path_prefix, iteration_vectors
+
+
 def get_barrier_blocks(cfg: CFG, path: List[str], likelihood_percentage: int, rng) -> set:
     return set([block for block in path if block != cfg.entry_block and rng.choices([True, False], [likelihood_percentage, 100-likelihood_percentage], k=1)[0]])
 
 
-def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True):
+def are_compatible(iteration_vec_1, iteration_vec_2, barriers) -> bool:
+    return all([iteration_vec_1[block] == iteration_vec_2[block] for block in barriers])
+
+
+def generate_paths(original_path, original_ivs, barrier_blocks, cfg, rng, path_length):
+    MAX_PATH_GENERATION_ATTEMPTS = 10
+    paths = set(original_path)
+    for _ in range(MAX_PATH_GENERATION_ATTEMPTS):
+        new_path, new_ivs = cfg.generate_path(rng, path_length)
+        if are_compatible(original_ivs, new_ivs, barrier_blocks):
+            paths.add(new_path)
+    return paths
+
+
+def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True, use_different_paths=True):
     rng = random.Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1274,10 +1309,9 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
               get_selection_header_blocks(instance),
               get_switch_blocks(instance))
 
-    path = cfg.generate_path(rng, path_length)
-    barrier_blocks = set()
-    if include_barriers:
-        barrier_blocks = get_barrier_blocks(cfg, path, 20, rng)    
+    path, iteration_vectors = cfg.generate_path(rng, path_length)
+    barrier_blocks = get_barrier_blocks(cfg, path, 20, rng) if include_barriers else set()
+    paths = generate_paths(path, iteration_vectors, barrier_blocks, cfg, rng, path_length) if use_different_paths else set(path)
 
     return cfg.to_string(), cfg.fleshout(path, 
                                          rng, 
