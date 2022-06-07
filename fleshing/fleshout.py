@@ -774,8 +774,17 @@ class CFG:
         return output_phi + input_phi   
 
 
-    def block_to_string_fleshing(self, label: str, id_path: List[str], local_array_sizes, conditional_block_ids, x_workgroups, y_workgroups, workgroup_size, prng, barrier_blocks, include_op_phi) -> str:
-        path_ids: Set[str] = set(id_path)
+    def block_to_string_fleshing(self, 
+                                 label: str, 
+                                 paths: List[Path], 
+                                 x_workgroups: int, 
+                                 y_workgroups: int, 
+                                 workgroup_size: int, 
+                                 prng: Random, 
+                                 include_op_phi: bool) -> str:
+        path_ids: Set[str] = set(id for path in paths for id in path.id_path)
+        conditional_block_ids: Set[str] = set(id for path in paths for id in path.conditional_block_ids)
+        exit_blocks: Set[str] = set(path.id_path[-1] for path in paths)
         block_id: str = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
@@ -832,7 +841,7 @@ class CFG:
             else:
                 result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n'
 
-            output_increment = 2 if block_id == id_path[-1] else 1
+            output_increment = 2 if block_id == exit_blocks else 1
             result += indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
                       '               OpStore %temp_' + block_id + '_1 %constant_' + block_id + '\n' + \
                       indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n'
@@ -863,7 +872,7 @@ class CFG:
                     result += indent1 + '%' + block_id + '_target_' + str(successor) + ' = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + str(successor) + '_index\n'
 
             # include barriers at any location before the final jump/return
-            if label in barrier_blocks:
+            if label in paths[0].barrier_blocks:
                 result = CFG.add_barrier(result, 2 + num_op_phi, prng)
 
         if label in self.loop_header_blocks:
@@ -900,16 +909,26 @@ class CFG:
 
 
     @staticmethod
-    def compute_num_threads(x_threads: int, y_threads: int, z_threads: int, ) -> int:
+    def compute_num_threads(x_threads: int, y_threads: int, z_threads: int) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
 
     @staticmethod
-    def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int, ) -> int:
+    def compute_num_workgroups(x_threads: int, y_threads: int, z_threads: int) -> int:
         return (z_threads-1) * x_threads * y_threads + (y_threads-1) * x_threads + (x_threads-1) + 1
 
 
-    def fleshout(self, path, prng, seed, x_threads, y_threads, z_threads, x_workgroups, y_workgroups, z_workgroups, barrier_blocks, include_op_phi) -> str:
+    def fleshout(self, 
+                 paths: List[Path], 
+                 prng: Random, 
+                 seed: int, 
+                 x_threads: int, 
+                 y_threads: int, 
+                 z_threads: int, 
+                 x_workgroups: int, 
+                 y_workgroups: int, 
+                 z_workgroups: int, 
+                 include_op_phi: bool) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -919,39 +938,33 @@ class CFG:
         """
         all_blocks_id: List[str] = [self.label_to_id[block] for block in self.all_blocks]
         all_blocks_id.sort()
-        conditional_blocks_id2string: List[str] = [str(id) for id in path.conditional_block_ids]
+
+        conditional_block_ids: List[str] = list(set([id for path in paths for id in path.conditional_block_ids]))
         # add constants: 0: to initialize counter variables to 0
         #                1: for incrementing counter variables
         #                2: for incrementing the last output index
-        new_constants: Set[str] = {str(0), str(1), str(2)}.union(set(all_blocks_id))
+        constants: Set[str] = {str(0), str(1), str(2)}.union(set(all_blocks_id))
 
-        new_constants.update([str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups]])
+        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups])
         num_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
         num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
 
         # find the sizes of the input arrays
-        local_array_sizes: Dict[str, int] = {}
-        array_sizes: Dict[str, int] = {}
-        for id in set(path.id_path):
-            if id in path.conditional_block_ids:
-                direction_size = path.id_path.count(id)
-                total_direction_size = direction_size * num_threads * num_workgroups
-                local_array_sizes[id] = direction_size 
-                array_sizes[id] = total_direction_size
-                new_constants.add(str(direction_size))
-                new_constants.add(str(num_threads * direction_size))
-                new_constants.add(str(total_direction_size))
-        output_length = len(path.id_path) + 1
-        total_output_length = output_length * num_threads * num_workgroups
-        local_array_sizes['output'] = output_length
-        array_sizes['output'] = total_output_length
-        new_constants.add(str(output_length))
-        new_constants.add(str(num_threads * output_length))
-        new_constants.add(str(total_output_length))
+        array_sizes: DefaultDict[str, int] = defaultdict(int)
+        for path in paths:
+            for arr_name, size in path.array_sizes.items():
+                array_sizes[arr_name] += size
+        constants.union([path.constants for path in paths])
+        constants.update([str(val) for val in array_sizes.values()])
+
+        constants2string = '\n'
+        constants2string += tab + f"%dummy_val = OpConstant %{str(self.UINT_TYPE_ID)} {str(666)}\n"
+        for i in constants:
+            constants2string += tab + '%constant_' + str(i) + ' = OpConstant %' + str(self.UINT_TYPE_ID) + ' ' + str(i) + '\n'
 
         # types_variables is used to declare various types and variables for storage buffers.
         types_variables = ''
-        tab = '               '
+        tab: str = '               '
 
         for b in set(array_sizes.values()):
             if array_sizes['output'] != b:
@@ -974,55 +987,6 @@ class CFG:
         types_variables += '\n' + tab + 'OpDecorate %output_variable DescriptorSet 0\n' + \
                                   tab + 'OpDecorate %output_variable Binding ' + str(binding) + '\n'
         conditional_blocks_id2binding['output'] = binding
-
-        # for every switch find the edge number from the OpSwitch list: if there are parallel edges incident to a switch, then pick one edge randomly
-        # compute successors of the block and the number of the edge which leads to the block in the path
-        switch2edges: Dict[str, List[int]] = {k: [] for k in self.switch_blocks}
-        for idx, sw in enumerate(path.label_path[:-1]):
-            if sw in self.switch_blocks:
-                successor_of_sw_index = idx + 1
-                target = path.label_path[successor_of_sw_index]
-                # find the position of target in self.jump_relation[sw]: if parallel edges,
-                # find the random-th occurence in self.jump_relation[sw]
-                parallel = self.jump_relation[sw].count(target)
-                if parallel == 1:
-                    literal_of_target = self.jump_relation[sw].index(target)
-                    switch2edges[sw].append(literal_of_target)
-                else:
-                    parallel_indices = [i for i, x in enumerate(self.jump_relation[sw]) if x == target]
-                    literal_of_target = prng.choice(parallel_indices)
-                    switch2edges[sw].append(literal_of_target)
-
-                new_constants.add(str(literal_of_target))
-
-        constants2string = '\n'
-        constants2string += tab + f"%dummy_val = OpConstant %{str(self.UINT_TYPE_ID)} {str(666)}\n"
-        for i in new_constants:
-            constants2string += tab + '%constant_' + str(i) + ' = OpConstant %' + str(self.UINT_TYPE_ID) + ' ' + str(i) + '\n'
-
-        path2string: str = ''
-        occurrences: Dict[str, int] = {}
-        for block in self.switch_blocks:
-            occurrences[block] = 0
-        # add the literal_of_target to the
-        for block in path.label_path[:-1]:
-            block_id = self.label_to_id[block]
-            b = ''
-            if block_id in path.conditional_block_ids:
-                b = '<' + block_id + '>'
-            else:
-                b = block_id
-            
-            if block in barrier_blocks:
-                b = 'b(' + b + ')'
-
-            if block not in self.switch_blocks:
-                path2string += b + ' -> '
-            else:
-                path2string += b + ' -> ' + 'edge_' + str(switch2edges[block][occurrences[block]]) + ' -> '
-                occurrences[block] += 1
-        path2string += self.label_to_id[path.label_path[-1]]
-
 
         storage_buffers = ''
         for s in set(array_sizes.values()):
@@ -1050,23 +1014,16 @@ class CFG:
                                   tab + '; Pointer type for integer data in a storage buffer\n'+ \
                                   tab + '%storage_buffer_int_ptr = OpTypePointer Uniform %' + str(self.UINT_TYPE_ID) + '\n'
 
-
         end = '\n\n END\n\n'
 
-        sh_directions: Dict[str, List[int]] = {k: [] for k in path.conditional_block_ids}
-        for label in path.conditional_block_labels:
-            label_id: str = self.label_to_id[label]
-            for i in range(len(path.id_path[:-1])):
-                if path.id_path[i] == label_id:
-                    if label not in self.switch_blocks:
-                        if path.id_path[i + 1] == self.label_to_id[self.jump_relation[label][0]]:
-                            sh_directions[label_id].append(1)
-                        elif path.id_path[i + 1] == self.label_to_id[self.jump_relation[label][1]]:
-                            sh_directions[label_id].append(0)
-                    else:
-                        sh_directions[label_id] = switch2edges[label]
+        directions: DefaultDict[str, List[int]] = defaultdict(list)
+        for path in paths:
+            for block_id, choices in path.directions.items():
+                directions[block_id] += choices
+
+        for block_id, choices in directions.items():
             end += ' BUFFER directions_{0} DATA_TYPE uint32 STD430 DATA {1} END\n'\
-                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads * num_workgroups))
+                .format(block_id, ' '.join([str(direction) for direction in directions[block_id]]))
 
 
         end += """
@@ -1075,10 +1032,9 @@ class CFG:
    ATTACH compute_shader
 """.format(array_sizes['output'])
 
-        for label in path.conditional_block_labels:
-            label_id = self.label_to_id[label]
+        for id in conditional_block_ids:
             end += '   BIND BUFFER directions_{0} AS storage DESCRIPTOR_SET 0 BINDING {1}\n'\
-                .format(label_id, conditional_blocks_id2binding[label_id])
+                .format(id, conditional_blocks_id2binding[id])
 
         end += """
    BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING {0}
@@ -1086,29 +1042,35 @@ class CFG:
  RUN pipeline {1} {2} {3}
 """.format(conditional_blocks_id2binding['output'], x_workgroups, y_workgroups, z_workgroups)
 
-        for label in path.conditional_block_labels:
-            label_id = self.label_to_id[label]
+        for id in conditional_block_ids:
             end += ' EXPECT directions_{0} IDX 0 EQ {1}\n' \
-                .format(label_id, ' '.join([str(int) for int in sh_directions[label_id]] * num_threads * num_workgroups))
+                .format(id, ' '.join([str(direction) for direction in directions[id]]))
 
+        expected_output = []
+        for path in paths:
+            expected_output += [id for id in path.id_path] + [str(0)]
         end += ' EXPECT output IDX 0 EQ {0}\n' \
-            .format(' '.join(([str(int) for int in path.id_path] + [str(0)]) * num_threads * num_workgroups))
+            .format(' '.join(expected_output))
 
 
+        paths2string = ''
+        for path_idx, path in enumerate(set(paths)):
+            paths2string += f"unique path #{path_idx}: {str(path)}\n\n"
 
         result_fleshed = """#!amber
 SHADER compute compute_shader SPIRV-ASM
-; Follow the path:
+; Follow the path(s):
 ; {7}
 ;
 ; {8} CFG nodes have OpBranchConditional or OpSwitch as their terminators (denoted <n>): {9}.
 ;
-; To follow this path, we need to make these decisions each time we reach {10}.
-; This path was generated with the seed {14} and has length {15}.
+; To follow these paths, we need to make decisions each time we reach {10}.
+; These paths were generated with the seed {14} and have lengths ranging from {15} to {16}.
 ;
 ; We equip the shader with {8}+1 storage buffers:
 ; - An input storage buffer with the directions for each node {10}
 ; - An output storage buffer that records the blocks that are executed
+
 ; SPIR-V
 ; Version: 1.3
 ; Generator: Khronos Glslang Reference Front End; 8
@@ -1117,7 +1079,7 @@ SHADER compute compute_shader SPIRV-ASM
                OpCapability Shader
                OpMemoryModel Logical GLSL450
                OpEntryPoint GLCompute %{0} "main" %local_invocation_idx_var %workgroup_id_var
-               OpExecutionMode %{0} LocalSize {16} {17} {18}
+               OpExecutionMode %{0} LocalSize {17} {18} {19}
                
                ; Below, we declare various types and variables for storage buffers.
                ; These decorations tell SPIR-V that the types and variables relate to storage buffers
@@ -1148,20 +1110,21 @@ SHADER compute compute_shader SPIRV-ASM
                    self.UINT_TYPE_ID,
                    self.TRUE_CONSTANT_ID,
                    self.ZERO_CONSTANT_ID,
-                   path2string, # {7}
-                   len(path.conditional_block_labels), # {8}
-                   ' and '.join(filter(None, [', '.join(conditional_blocks_id2string[:-1])] + conditional_blocks_id2string[-1:])), # {9}
-                   ' or '.join(filter(None, [', '.join(conditional_blocks_id2string[:-1])] + conditional_blocks_id2string[-1:])),  # {10}
+                   paths2string, # {7}
+                   len(conditional_block_ids), # {8}
+                   ' and '.join(filter(None, [', '.join(conditional_block_ids[:-1])] + conditional_block_ids[-1:])), # {9}
+                   ' or '.join(filter(None, [', '.join(conditional_block_ids[:-1])] + conditional_block_ids[-1:])),  # {10}
                    types_variables, # {11}
                    constants2string, # {12}
                    storage_buffers, # {13}
                    seed, # {14}
-                   len(path), # {15}
-                   x_threads, # {16}
-                   y_threads, # {17}
-                   z_threads) # {18}
+                   min([len(path) for path in paths]), # {15}
+                   max([len(path) for path in paths]), # {16}
+                   x_threads, # {17}
+                   y_threads, # {18}
+                   z_threads) # {19}
         
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, path.id_path, local_array_sizes, path.conditional_block_ids, x_workgroups, y_workgroups, num_threads, prng, barrier_blocks, include_op_phi) for block in self.topological_ordering])
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_threads, prng, include_op_phi) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
@@ -1354,10 +1317,20 @@ class Path:
 
     def __len__(self) -> int:
         return len(self.id_path)
+    
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Path):
+            return str(self) == str(other)
+        return NotImplemented
+    
+
+    def __hash__(self) -> int:
+        return hash(str(self))
 
 
 def get_barrier_blocks(cfg: CFG, path: Path, likelihood_percentage: int, rng) -> set:
-    return set([block for block in path.label_path if block != cfg.entry_block and rng.choices([True, False], [likelihood_percentage, 100-likelihood_percentage], k=1)[0]])
+    return set(block for block in path.label_path if block != cfg.entry_block and rng.choices([True, False], [likelihood_percentage, 100-likelihood_percentage], k=1)[0])
 
 
 def generate_paths(original_path, cfg, rng, path_length) -> List[Path]:
@@ -1410,7 +1383,7 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
     num_required_paths = CFG.compute_num_threads(num_x_threads, num_y_threads, num_z_threads) * CFG.compute_num_workgroups(num_x_workgroups, num_y_workgroups, num_z_workgroups)
     paths = [rng.choice(paths) for _ in range(num_required_paths)]
 
-    return cfg.to_string(), cfg.fleshout(paths[0],
+    return cfg.to_string(), cfg.fleshout(paths,
                                          rng, 
                                          seed, 
                                          num_x_threads,
@@ -1418,8 +1391,7 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
                                          num_z_threads,
                                          num_x_workgroups,
                                          num_y_workgroups,
-                                         num_z_workgroups,
-                                         paths[0].barrier_blocks, 
+                                         num_z_workgroups, 
                                          include_op_phi) 
 
 
