@@ -16,10 +16,11 @@ import fleshing_runner
 import os
 import pathlib
 import shutil
+import statistics
 
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import Dict, FrozenSet, Set
+from typing import Dict, FrozenSet, Set, Tuple
 
 
 def get_amber_files(folder):
@@ -38,6 +39,23 @@ def copy_amber_files(src_folder, dst_folder):
                 continue
             new_file_name = os.path.join(dst_folder, test_folder + "_" + file)
             shutil.copyfile(full_file_path, new_file_name)
+
+
+def path_stats(amber_folder) -> Tuple[float, float, int, int, float, float, int]:
+    all_paths: Dict[str, FrozenSet[str]] = {}
+    barriers_in_file: Dict[str, int] = {}
+    for file in get_amber_files(amber_folder):
+        paths: FrozenSet[str] = find_paths(file)
+        all_paths[str(file)] = paths
+        barriers_in_file[str(file)] = sum([len(get_barrier_blocks(path)) for path in paths])
+    
+    lengths = [len(paths) for paths in all_paths.values()]
+    return statistics.mean(lengths), statistics.median(lengths), max(lengths), len(all_paths), statistics.mean(barriers_in_file.values()), statistics.median(barriers_in_file.values()), max(barriers_in_file.values())
+
+
+def get_barrier_blocks(path: str) -> Set[str]:
+    blocks = path.split(" ")
+    return set(block for block in blocks if "b(" in block)
 
 
 def find_paths(amber_file) -> FrozenSet[str]:
