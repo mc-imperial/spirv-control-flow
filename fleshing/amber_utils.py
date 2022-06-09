@@ -19,6 +19,7 @@ import shutil
 
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import Dict, FrozenSet, Set
 
 
 def get_amber_files(folder):
@@ -39,17 +40,17 @@ def copy_amber_files(src_folder, dst_folder):
             shutil.copyfile(full_file_path, new_file_name)
 
 
-def find_path(amber_file):
+def find_paths(amber_file) -> FrozenSet[str]:
+    paths = set()
     with open(amber_file, 'r') as f:
         lines = f.readlines()
-    path_idx = -1
+
     for idx, line in enumerate(lines):
-        if line == "; Follow the path:\n":
-            path_idx = idx + 1
-            break
-    assert path_idx != -1
-    path = lines[path_idx].split(';')[1][1:]
-    return path
+        if "; unique path #" in line:
+            path = lines[idx].split(':')[1][1:]
+            paths.add(path)
+    assert len(paths) > 0
+    return frozenset(paths)
 
 
 def delete_file(file):
@@ -57,22 +58,22 @@ def delete_file(file):
 
 
 def deduplicate(amber_folder):
-    paths = {}
+    all_paths: Dict[str, Set[str]] = {}
     duplicate_count = 0
     for file in get_amber_files(amber_folder):
         file_path = pathlib.PurePath(file)
         parent_name = file_path.parent.stem
-        path = find_path(file_path)
+        paths: FrozenSet[str] = find_paths(file_path)
         
-        if parent_name not in paths:
-            paths[parent_name] = set()
+        if parent_name not in all_paths:
+            all_paths[parent_name] = set()
         
-        if path in paths[parent_name]:
+        if paths in all_paths[parent_name]:
             duplicate_count += 1
             print(f"deleting file {file_path}")
             delete_file(file_path)
             continue
-        paths[parent_name].add(path)
+        all_paths[parent_name].add(paths)
     print(f"Removed {duplicate_count} paths in total")
 
 
