@@ -950,9 +950,14 @@ class CFG:
         array_sizes: DefaultDict[str, int] = defaultdict(int)
         index_offsets: DefaultDict[str, List[int]] = defaultdict(list)
         for path in paths:
+            unvisited = set(conditional_block_ids).union({'output'})
             for arr_name, size in path.array_sizes.items():
+                unvisited.remove(arr_name)
                 index_offsets[arr_name].append(array_sizes[arr_name])
                 array_sizes[arr_name] += size
+            
+            for arr_name in unvisited:
+                index_offsets[arr_name].append(0)
 
         # Set size of the arrays that will hold the starting indices for each thread
         array_sizes["index"] = total_num_threads
