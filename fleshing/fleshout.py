@@ -271,8 +271,9 @@ def isReachable(graph, s, d):
 def get_doomed_blocks(graph):
     result: Set[str] = set()
     all_blocks = set(graph.keys()).union(set(x for lst in graph.values() for x in lst))
+    exit_blocks = get_exit_blocks(graph)
     for src in all_blocks:
-        if not any(isReachable(graph, src, dest) for dest in get_exit_blocks(graph)):
+        if not any(isReachable(graph, src, dest) for dest in exit_blocks):
             result.add(src)
     return result
 
@@ -526,8 +527,10 @@ class CFG:
                  loop_header_blocks: Set[str],
                  selection_header_blocks: Set[str],
                  switch_blocks: Set[str]):
-        self.jump_relation = jump_relation
+        self.jump_relation: Dict[str, List[str]] = jump_relation
         self.reverse_graph = compute_reverse_graph(jump_relation)
+        self.non_doomed_graph: Dict[str, List[str]] = self.create_non_doomed_graph()
+        self.exit_blocks = get_exit_blocks(self.jump_relation)
         self.merge_relation = merge_relation
         self.merge_to_loop_header = dict([(self.merge_relation[block], block) for block in loop_header_blocks])
         self.continue_relation = continue_relation
@@ -545,6 +548,12 @@ class CFG:
         self.structured_jump_relation: Dict[str, List[str]] = self.compute_structured_jump_relation()
         self.structured_back_edges: Dict[str, Set[str]] = self.compute_back_edges()
         self.topological_ordering: List[str] = self.compute_topological_ordering()
+
+
+    def create_non_doomed_graph(self) -> Dict[str, List[str]]:
+        graph = self.jump_relation.copy()
+        doomed = get_doomed_blocks(graph)
+        return get_non_doomed_graph(graph, doomed)
 
 
     def compute_structured_jump_relation(self) -> Dict[str, List[str]]:
@@ -781,10 +790,10 @@ class CFG:
                                  y_workgroups: int, 
                                  workgroup_size: int, 
                                  prng: Random, 
-                                 include_op_phi: bool) -> str:
-        path_ids: Set[str] = set(id for path in paths for id in path.id_path)
-        conditional_block_ids: Set[str] = set(id for path in paths for id in path.conditional_block_ids)
-        exit_blocks: Set[str] = set(path.id_path[-1] for path in paths)
+                                 include_op_phi: bool,
+                                 path_ids: Set[str],
+                                 conditional_block_ids: Set[str],
+                                 exit_blocks: Set[str]) -> str:
         block_id: str = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
@@ -1146,21 +1155,19 @@ SHADER compute compute_shader SPIRV-ASM
                    y_threads, # {18}
                    z_threads) # {19}
         
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_local_threads, prng, include_op_phi) for block in self.topological_ordering])
+        path_ids: Set[str] = set(id for path in paths for id in path.id_path)
+        exit_blocks: Set[str] = set(path.id_path[-1] for path in paths)
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_local_threads, prng, include_op_phi, path_ids, set(conditional_block_ids), exit_blocks) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
         return result_fleshed
 
 
-    def random_path_of_desired_length_without_passing_through_doomed(self, jump_relation, start, length, current_iteration_vector, iteration_vectors, prng):
-        graph = jump_relation.copy()
-        doomed = get_doomed_blocks(graph)
-        if start in doomed:
+    def random_path_of_desired_length_without_passing_through_doomed(self, start, length, current_iteration_vector, iteration_vectors, prng):
+        if start not in self.non_doomed_graph:
             raise AllTerminalNodesUnreachableError()
-
-        non_doomed_graph = get_non_doomed_graph(graph, doomed)
-        return self.find_random_path(non_doomed_graph, start, length, [], current_iteration_vector, iteration_vectors, prng)
+        return self.find_random_path(start, length, [], current_iteration_vector, iteration_vectors, prng)
 
 
     def update_iteration_vectors(self, node, current_iteration_vector, iteration_vectors):
@@ -1173,7 +1180,7 @@ SHADER compute compute_shader SPIRV-ASM
         iteration_vectors[node].append(current_iteration_vector.copy())
 
 
-    def find_random_path(self, graph, src, target_length, path, current_iteration_vector, iteration_vectors, prng):
+    def find_random_path(self, src, target_length, path, current_iteration_vector, iteration_vectors, prng):
         path.append(src)
 
         self.update_iteration_vectors(src, current_iteration_vector, iteration_vectors)
@@ -1181,15 +1188,15 @@ SHADER compute compute_shader SPIRV-ASM
         if len(path) >= target_length:
             return path
         
-        if src not in graph:
-            assert src in get_exit_blocks(graph)
+        if src not in self.non_doomed_graph:
+            assert src in self.exit_blocks
             return path
         
-        next_node = prng.choice(graph[src])
-        return self.find_random_path(graph, next_node, target_length, path, current_iteration_vector, iteration_vectors, prng)
+        next_node = prng.choice(self.non_doomed_graph[src])
+        return self.find_random_path(next_node, target_length, path, current_iteration_vector, iteration_vectors, prng)
 
 
-    def find_path_to_exit_node(self, graph, src, exit_nodes, current_iteration_vector, iteration_vectors):
+    def find_path_to_exit_node(self, graph, src, current_iteration_vector, iteration_vectors):
         # BFS where termination condition is reaching an exit node.
         # Since the graph is unweighted this will also give us the
         # shortest path to an exit node.
@@ -1203,31 +1210,29 @@ SHADER compute compute_shader SPIRV-ASM
             if n != src:
                 self.update_iteration_vectors(n, current_iteration_vector, iteration_vectors)
 
-            if n in exit_nodes:
+            if n in self.exit_blocks:
                 return recover_bfs_path(src, n, parents) 
 
             if n not in graph:
-                raise TerminalNodesUnreachableFromCurrentNodeError(n, exit_nodes)
+                raise TerminalNodesUnreachableFromCurrentNodeError(n, self.exit_blocks)
 
             for neighbour in graph[n]:
                 if neighbour not in parents:
                     queue.append(neighbour)
                     parents[neighbour] = n
-        raise TerminalNodesUnreachableFromCurrentNodeError(src, exit_nodes)
+        raise TerminalNodesUnreachableFromCurrentNodeError(src, self.exit_blocks)
 
 
     def generate_path(self, prng, max_path_length=MAX_PATH_LENGTH) -> Path:
-        exit_blocks = get_exit_blocks(self.jump_relation)
         current_iteration_vector = dict((block, 0) for block in self.loop_header_blocks)
         iteration_vectors: DefaultDict[str, List[Dict[str, int]]] = defaultdict(list)
-        rand_path_prefix = self.random_path_of_desired_length_without_passing_through_doomed(self.jump_relation,
-                                                                                             self.entry_block,
+        rand_path_prefix = self.random_path_of_desired_length_without_passing_through_doomed(self.entry_block,
                                                                                              max_path_length,
                                                                                              current_iteration_vector,
                                                                                              iteration_vectors,
                                                                                              prng)
-        if rand_path_prefix[-1] not in exit_blocks:
-            rand_path_suffix = self.find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], exit_blocks, current_iteration_vector, iteration_vectors)
+        if rand_path_prefix[-1] not in self.exit_blocks:
+            rand_path_suffix = self.find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], current_iteration_vector, iteration_vectors)
             assert rand_path_suffix is not None
             rand_path_prefix += rand_path_suffix[1:]
         return Path(self, prng, rand_path_prefix, iteration_vectors)
@@ -1289,32 +1294,6 @@ class Path:
         for targets in self.switch2edges.values():
             constants.update([str(target) for target in targets])        
         return constants
-
-
-    def __str__(self) -> str:
-        path2string = ''
-        occurrences = {}
-        for block in self.cfg.switch_blocks:
-            occurrences[block] = 0
-
-        for block in self.label_path[:-1]:
-            block_id = self.cfg.get_block_id(block)
-            b = ''
-            if block_id in self.conditional_block_ids:
-                b = '<' + str(block_id) + '>'
-            else:
-                b = str(block_id)
-            
-            if block in self.barrier_blocks:
-                b = 'b(' + b + ')'
-
-            if block not in self.cfg.switch_blocks:
-                path2string += b + ' -> '
-            else:
-                path2string += b + ' -> ' + 'edge_' + str(self.switch2edges[block][occurrences[block]]) + ' -> '
-                occurrences[block] += 1
-        path2string += str(self.cfg.get_block_id(self.label_path[-1]))
-        return path2string
     
 
     def compute_direction_arrays(self) -> Dict[str, List[int]]:
@@ -1341,14 +1320,44 @@ class Path:
         return len(self.id_path)
     
 
+    def __str__(self) -> str:
+        path2string = ''
+        occurrences = {}
+        for block in self.cfg.switch_blocks:
+            occurrences[block] = 0
+
+        for block in self.label_path[:-1]:
+            block_id = self.cfg.get_block_id(block)
+            b = ''
+            if block_id in self.conditional_block_ids:
+                b = '<' + str(block_id) + '>'
+            else:
+                b = str(block_id)
+            
+            if block in self.barrier_blocks:
+                b = 'b(' + b + ')'
+
+            if block not in self.cfg.switch_blocks:
+                path2string += b + ' -> '
+            else:
+                path2string += b + ' -> ' + 'edge_' + str(self.switch2edges[block][occurrences[block]]) + ' -> '
+                occurrences[block] += 1
+        path2string += str(self.cfg.get_block_id(self.label_path[-1]))
+        return path2string
+
+
+    def __key(self):
+        return (self.id_path, self.barrier_blocks, self.switch2edges) 
+
+
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Path):
-            return str(self) == str(other)
+            return self.__key == other.__key
         return NotImplemented
     
 
     def __hash__(self) -> int:
-        return hash(str(self))
+        return hash(self.__key)
 
 
 def get_barrier_blocks(cfg: CFG, path: Path, likelihood_percentage: int, rng) -> set:
@@ -1356,7 +1365,7 @@ def get_barrier_blocks(cfg: CFG, path: Path, likelihood_percentage: int, rng) ->
 
 
 def generate_paths(original_path, cfg, rng, path_length) -> List[Path]:
-    MAX_PATH_GENERATION_ATTEMPTS = 10
+    MAX_PATH_GENERATION_ATTEMPTS = 100
     paths = [original_path]
     for _ in range(MAX_PATH_GENERATION_ATTEMPTS):
         new_path = cfg.generate_path(rng, path_length)
@@ -1400,7 +1409,7 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
               get_switch_blocks(instance))
 
     path: Path = cfg.generate_path(rng, path_length)
-    path.barrier_blocks = get_barrier_blocks(cfg, path, 20, rng) if include_barriers else set()
+    path.barrier_blocks = get_barrier_blocks(cfg, path, 40, rng) if include_barriers else set()
     paths: List[Path] = generate_paths(path, cfg, rng, path_length) if use_different_paths else [path]
     num_required_paths = CFG.compute_num_threads(num_x_threads, num_y_threads, num_z_threads) * CFG.compute_num_workgroups(num_x_workgroups, num_y_workgroups, num_z_workgroups)
     paths = [rng.choice(paths) for _ in range(num_required_paths)]
