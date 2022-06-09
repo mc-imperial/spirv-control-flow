@@ -810,20 +810,15 @@ class CFG:
             result += '               %yz_idx_component = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %y_idx_component %z_idx_component\n'
             result += '               %workgroup_idx = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %yz_idx_component %x_wg_dim\n\n'
 
-            for block in conditional_block_ids:
-                result += '               %local_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(local_array_sizes[block]) + '\n'
-            result += '\n'
+            result += '               %workgroup_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx %constant_' + str(workgroup_size) + '\n'
+            result += '               %thread_index_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %workgroup_offset %local_invocation_idx\n\n'
 
             for block in conditional_block_ids:
-                result += '               %global_directions_' + str(block) + '_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(local_array_sizes[block] * workgroup_size) + '\n'
-            result += '\n'
+                result += '               %directions_' + str(block) + '_start_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_' + str(block) + '_index_variable %constant_0 %thread_index_offset\n'
+                result += '               %directions_' + str(block) + '_offset = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + str(block) + '_start_idx_ptr\n'
 
-            for block in conditional_block_ids:
-                result += '               %directions_' + str(block) + '_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %global_directions_' + str(block) + '_offset %local_directions_' + str(block) + '_offset\n'
-
-            result += '               %local_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx ' + '%constant_' + str(local_array_sizes['output']) + '\n'
-            result += '               %global_output_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %workgroup_idx ' + '%constant_' + str(local_array_sizes['output'] * workgroup_size) + '\n'
-            result += '               %output_offset = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %global_output_offset %local_output_offset\n'
+            result += '               %output_start_idx_ptr = OpAccessChain %storage_buffer_int_ptr %output_index_variable %constant_0 %thread_index_offset\n'
+            result += '               %output_offset = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_start_idx_ptr\n'
             result += '\n'
 
             for block in conditional_block_ids:
@@ -841,7 +836,7 @@ class CFG:
             else:
                 result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n'
 
-            output_increment = 2 if block_id == exit_blocks else 1
+            output_increment = 2 if block_id in exit_blocks else 1
             result += indent1 + '%temp_' + block_id + '_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_' + block_id + '_0\n' + \
                       '               OpStore %temp_' + block_id + '_1 %constant_' + block_id + '\n' + \
                       indent1 + '%temp_' + block_id + '_2 = OpIAdd %' + str(self.UINT_TYPE_ID) + ' %temp_' + block_id + '_0 %constant_' + str(output_increment) + '\n'
@@ -940,23 +935,33 @@ class CFG:
         all_blocks_id.sort()
 
         conditional_block_ids: List[str] = list(set([id for path in paths for id in path.conditional_block_ids]))
+        conditional_block_ids.sort()
         # add constants: 0: to initialize counter variables to 0
         #                1: for incrementing counter variables
         #                2: for incrementing the last output index
         constants: Set[str] = {str(0), str(1), str(2)}.union(set(all_blocks_id))
 
-        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups])
-        num_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
+        num_local_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
         num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
+        total_num_threads = num_local_threads * num_workgroups
+        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups, num_local_threads, total_num_threads])
 
-        # find the sizes of the input arrays
+        # find the sizes of the input and output arrays
         array_sizes: DefaultDict[str, int] = defaultdict(int)
+        index_offsets: DefaultDict[str, List[int]] = defaultdict(list)
         for path in paths:
             for arr_name, size in path.array_sizes.items():
+                index_offsets[arr_name].append(array_sizes[arr_name])
                 array_sizes[arr_name] += size
-        constants.union([path.constants for path in paths])
-        constants.update([str(val) for val in array_sizes.values()])
 
+        # Set size of the arrays that will hold the starting indices for each thread
+        array_sizes["index"] = total_num_threads
+
+        unique_array_sizes: Set[int] = set(array_sizes.values())
+        constants.update([constant for path in paths for constant in path.constants])
+        constants.update([str(val) for val in unique_array_sizes])
+
+        tab: str = '               '
         constants2string = '\n'
         constants2string += tab + f"%dummy_val = OpConstant %{str(self.UINT_TYPE_ID)} {str(666)}\n"
         for i in constants:
@@ -964,54 +969,54 @@ class CFG:
 
         # types_variables is used to declare various types and variables for storage buffers.
         types_variables = ''
-        tab: str = '               '
 
-        for b in set(array_sizes.values()):
-            if array_sizes['output'] != b:
-                types_variables += '\n' + tab + 'OpDecorate %size_' + str(b) + '_struct_type BufferBlock\n' + \
-                                          tab + 'OpMemberDecorate %size_' + str(b) + '_struct_type 0 Offset 0\n' + \
-                                          tab + 'OpDecorate %size_' + str(b) + '_array_type ArrayStride 4\n'
+        for b in set(unique_array_sizes):
+            if b != array_sizes['output'] or array_sizes['index'] == array_sizes['output']:
+                types_variables += '\n' + \
+                    tab + 'OpDecorate %size_' + str(b) + '_struct_type BufferBlock\n' + \
+                    tab + 'OpMemberDecorate %size_' + str(b) + '_struct_type 0 Offset 0\n' + \
+                    tab + 'OpDecorate %size_' + str(b) + '_array_type ArrayStride 4\n'
 
         types_variables += '\n' + tab + 'OpDecorate %output_struct_type BufferBlock\n' + \
                                   tab + 'OpMemberDecorate %output_struct_type 0 Offset 0\n' + \
                                   tab + 'OpDecorate %output_array_type ArrayStride 4\n'
-
-        binding = 0
-        conditional_blocks_id2binding = {}
-        for i in path.conditional_block_ids:
+        
+        bindings: Dict[str, int] = {}
+        for i in conditional_block_ids:
             types_variables += '\n' + tab + 'OpDecorate %directions_' + str(i) + '_variable DescriptorSet 0\n' + \
-                                      tab + 'OpDecorate %directions_' + str(i) + '_variable Binding ' + str(binding) + '\n'
-            conditional_blocks_id2binding[i] = binding
-            binding += 1
+                                      tab + 'OpDecorate %directions_' + str(i) + '_variable Binding ' + str(len(bindings)) + '\n'
+            bindings[i] = len(bindings)
+            types_variables += '\n' + tab + 'OpDecorate %directions_' + str(i) + '_index_variable DescriptorSet 0\n' + \
+                                      tab + 'OpDecorate %directions_' + str(i) + '_index_variable Binding ' + str(len(bindings)) + '\n'
+            bindings[f"{i}_index"] = len(bindings)
 
         types_variables += '\n' + tab + 'OpDecorate %output_variable DescriptorSet 0\n' + \
-                                  tab + 'OpDecorate %output_variable Binding ' + str(binding) + '\n'
-        conditional_blocks_id2binding['output'] = binding
+                                  tab + 'OpDecorate %output_variable Binding ' + str(len(bindings)) + '\n'
+        bindings['output'] = len(bindings)
+        types_variables += '\n' + tab + 'OpDecorate %output_index_variable DescriptorSet 0\n' + \
+                                  tab + 'OpDecorate %output_index_variable Binding ' + str(len(bindings)) + '\n'
+        bindings['output_index'] = len(bindings)
 
         storage_buffers = ''
-        for s in set(array_sizes.values()):
-            if array_sizes['output'] != s:
+        for s in set(unique_array_sizes):
+            if array_sizes['output'] != s or array_sizes['index'] == array_sizes['output']:
                 storage_buffers += '\n' + tab + '%size_' + str(s) + '_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(s) + '\n' + \
                                           tab + '%size_' + str(s) + '_struct_type = OpTypeStruct %size_' + str(s) + '_array_type\n' + \
                                           tab + '%size_' + str(s) + '_pointer_type = OpTypePointer Uniform %size_' + str(s) + '_struct_type\n'
 
-                listOfKeys = set()
-                listOfItems = array_sizes.items()
-                for item in listOfItems:
-                    if item[1] == s:
-                        listOfKeys.add(item[0])
-
-                for block in listOfKeys:
-                    storage_buffers += tab + '%directions_' + str(block) + '_variable = OpVariable %size_' + str(s) + '_pointer_type Uniform\n'
-
+        storage_buffers += '\n'
+        for id, size in array_sizes.items():
+            if id == "output" or id == "index":
+                continue
+            storage_buffers += tab + f"%directions_{str(id)}_variable = OpVariable %size_{str(size)}_pointer_type Uniform\n"
+            storage_buffers += tab + f"%directions_{str(id)}_index_variable = OpVariable %size_{str(array_sizes['index'])}_pointer_type Uniform\n"
 
         storage_buffers += '\n' + tab + '%output_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(array_sizes['output']) + '\n' + \
                                   tab + '%output_struct_type = OpTypeStruct %output_array_type\n' + \
                                   tab + '%output_pointer_type = OpTypePointer Uniform %output_struct_type\n'+ \
-                                  tab + '%output_variable = OpVariable %output_pointer_type Uniform\n\n'+ \
-                                  tab + '; Pointer type for declaring local variables of int type\n'+ \
-                                  tab + '%local_int_ptr = OpTypePointer Function %' + str(self.UINT_TYPE_ID) + '\n\n'+ \
-                                  tab + '; Pointer type for integer data in a storage buffer\n'+ \
+                                  tab + '%output_variable = OpVariable %output_pointer_type Uniform\n'+ \
+                                  tab + f"%output_index_variable = OpVariable %size_{str(array_sizes['index'])}_pointer_type Uniform\n\n"+ \
+                                  tab + '%local_int_ptr = OpTypePointer Function %' + str(self.UINT_TYPE_ID) + '\n'+ \
                                   tab + '%storage_buffer_int_ptr = OpTypePointer Uniform %' + str(self.UINT_TYPE_ID) + '\n'
 
         end = '\n\n END\n\n'
@@ -1024,43 +1029,55 @@ class CFG:
         for block_id, choices in directions.items():
             end += ' BUFFER directions_{0} DATA_TYPE uint32 STD430 DATA {1} END\n'\
                 .format(block_id, ' '.join([str(direction) for direction in directions[block_id]]))
-
+            end += ' BUFFER directions_{0}_index DATA_TYPE uint32 STD430 DATA {1} END\n'\
+                .format(block_id, ' '.join([str(index) for index in index_offsets[block_id]]))
+        
 
         end += """
  BUFFER output DATA_TYPE uint32 STD430 SIZE {0} FILL 0
+ BUFFER output_index DATA_TYPE uint32 STD430 DATA {1} END
+
  PIPELINE compute pipeline
    ATTACH compute_shader
-""".format(array_sizes['output'])
+""".format(array_sizes['output'], ' '.join([str(index) for index in index_offsets['output']]))
 
         for id in conditional_block_ids:
-            end += '   BIND BUFFER directions_{0} AS storage DESCRIPTOR_SET 0 BINDING {1}\n'\
-                .format(id, conditional_blocks_id2binding[id])
+            end += '   BIND BUFFER directions_{0} AS storage DESCRIPTOR_SET 0 BINDING {1}\n' \
+                .format(id, bindings[id])
+            end += '   BIND BUFFER directions_{0}_index AS storage DESCRIPTOR_SET 0 BINDING {1}\n' \
+                .format(id, bindings[str(id) + "_index"])
 
         end += """
    BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING {0}
+   BIND BUFFER output_index AS storage DESCRIPTOR_SET 0 BINDING {1}
+
  END
- RUN pipeline {1} {2} {3}
-""".format(conditional_blocks_id2binding['output'], x_workgroups, y_workgroups, z_workgroups)
+ RUN pipeline {2} {3} {4}\n
+""".format(bindings['output'], bindings['output_index'], x_workgroups, y_workgroups, z_workgroups)
 
         for id in conditional_block_ids:
             end += ' EXPECT directions_{0} IDX 0 EQ {1}\n' \
                 .format(id, ' '.join([str(direction) for direction in directions[id]]))
+            end += ' EXPECT directions_{0}_index IDX 0 EQ {1}\n' \
+                .format(id, ' '.join([str(index) for index in index_offsets[id]]))
 
         expected_output = []
         for path in paths:
             expected_output += [id for id in path.id_path] + [str(0)]
         end += ' EXPECT output IDX 0 EQ {0}\n' \
             .format(' '.join(expected_output))
+        end += ' EXPECT output_index IDX 0 EQ {0}\n' \
+            .format(' '.join([str(index) for index in index_offsets['output']]))
 
 
         paths2string = ''
         for path_idx, path in enumerate(set(paths)):
-            paths2string += f"unique path #{path_idx}: {str(path)}\n\n"
+            paths2string += f"; unique path #{path_idx}: {str(path)}\n"
 
         result_fleshed = """#!amber
 SHADER compute compute_shader SPIRV-ASM
 ; Follow the path(s):
-; {7}
+{7}
 ;
 ; {8} CFG nodes have OpBranchConditional or OpSwitch as their terminators (denoted <n>): {9}.
 ;
@@ -1086,22 +1103,22 @@ SHADER compute compute_shader SPIRV-ASM
 {11}
                OpDecorate %local_invocation_idx_var BuiltIn LocalInvocationIndex
                OpDecorate %workgroup_id_var BuiltIn WorkgroupId
+
           %{1} = OpTypeVoid
           %{2} = OpTypeFunction %{1}
           %{3} = OpTypeBool
           %{4} = OpTypeInt 32 0
           %{5} = OpConstantTrue %{3}
           %{6} = OpConstant %{4} 0
-          
 {12}
                ; Declaration of storage buffers for the {8} directions and the output
-               
 {13}
                %input_int_ptr = OpTypePointer Input %{4}
                %local_invocation_idx_var = OpVariable %input_int_ptr Input
                %vec_3_input = OpTypeVector %{4} 3
                %workgroup_ptr = OpTypePointer Input %vec_3_input 
                %workgroup_id_var = OpVariable %workgroup_ptr Input
+
           %{0} = OpFunction %{1} None %{2}
 """.format(self.MAIN_FUNCTION_ID,
                    self.VOID_TYPE_ID,
@@ -1124,7 +1141,7 @@ SHADER compute compute_shader SPIRV-ASM
                    y_threads, # {18}
                    z_threads) # {19}
         
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_threads, prng, include_op_phi) for block in self.topological_ordering])
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_local_threads, prng, include_op_phi) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
@@ -1274,7 +1291,7 @@ class Path:
         occurrences = {}
         for block in self.cfg.switch_blocks:
             occurrences[block] = 0
-        # add the literal_of_target to the
+
         for block in self.label_path[:-1]:
             block_id = self.cfg.get_block_id(block)
             b = ''
@@ -1377,9 +1394,9 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
               get_selection_header_blocks(instance),
               get_switch_blocks(instance))
 
-    path = cfg.generate_path(rng, path_length)
+    path: Path = cfg.generate_path(rng, path_length)
     path.barrier_blocks = get_barrier_blocks(cfg, path, 20, rng) if include_barriers else set()
-    paths = generate_paths(path, cfg, rng, path_length) if use_different_paths else [path]
+    paths: List[Path] = generate_paths(path, cfg, rng, path_length) if use_different_paths else [path]
     num_required_paths = CFG.compute_num_threads(num_x_threads, num_y_threads, num_z_threads) * CFG.compute_num_workgroups(num_x_workgroups, num_y_workgroups, num_z_workgroups)
     paths = [rng.choice(paths) for _ in range(num_required_paths)]
 
