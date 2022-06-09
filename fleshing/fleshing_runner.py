@@ -31,8 +31,11 @@ def get_test_folders(xml_folder):
 
 def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=False, include_op_phi=False):
     configure_logging()
+    start_time = time.perf_counter()
     files_with_errors = []
     files_with_terminal_node_issues = []
+    num_xml_files_processed = 0
+    num_amber_files_produced = 0
     for test_folder in get_test_folders(xml_folder):
         test_file = os.path.join(xml_folder, test_folder, "test_0.xml")
 
@@ -47,6 +50,7 @@ def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_wor
                 amber_file_path = test_file.replace(".xml", f"_{seed}") + ".amber"
                 with open(amber_file_path, 'w') as amber_file:
                     amber_file.write(amber_program_str)
+                num_amber_files_produced += 1
             except (fleshout.NoTerminalNodesInCFGError, fleshout.AllTerminalNodesUnreachableError):
                 files_with_terminal_node_issues.append(test_file)
                 logger.error(traceback.format_exc())
@@ -58,9 +62,13 @@ def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_wor
                 logger.error(traceback.format_exc())
                 logger.error(test_file)
                 logger.error(seed)
+        num_xml_files_processed += 1
 
+    elapsed_time = time.perf_counter() - start_time
     logger.info(f"Found {len(files_with_terminal_node_issues)} CFGs have either no terminal nodes or all terminal nodes are unreachable")
     logger.info(f"Found {len(files_with_errors)} errors when generating amber files")
+    logger.info(f"Produced {num_amber_files_produced} amber files from {num_xml_files_processed} xml files")
+    logger.info(f"Fleshing executed in: {elapsed_time} seconds")
 
 
 def parse_args():
