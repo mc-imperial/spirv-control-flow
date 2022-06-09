@@ -43,14 +43,14 @@ def copy_amber_files(src_folder, dst_folder):
 
 def path_stats(amber_folder) -> Tuple[float, float, int, int, float, float, int]:
     all_paths: Dict[str, FrozenSet[str]] = {}
-    barriers_in_file: Dict[str, int] = {}
+    unique_barriers_in_file: Dict[str, int] = {}
     for file in get_amber_files(amber_folder):
         paths: FrozenSet[str] = find_paths(file)
         all_paths[str(file)] = paths
-        barriers_in_file[str(file)] = sum([len(get_barrier_blocks(path)) for path in paths])
+        unique_barriers_in_file[str(file)] = len(set().union(*[get_barrier_blocks(path) for path in paths]))
     
     lengths = [len(paths) for paths in all_paths.values()]
-    return statistics.mean(lengths), statistics.median(lengths), max(lengths), len(all_paths), statistics.mean(barriers_in_file.values()), statistics.median(barriers_in_file.values()), max(barriers_in_file.values())
+    return statistics.mean(lengths), statistics.median(lengths), max(lengths), len(all_paths), statistics.mean(unique_barriers_in_file.values()), statistics.median(unique_barriers_in_file.values()), max(unique_barriers_in_file.values())
 
 
 def get_barrier_blocks(path: str) -> Set[str]:
