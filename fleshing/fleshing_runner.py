@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import cProfile
 import fleshout
+import io
 import logging
 import os
+import pstats
 import random
 import sys
 import time
@@ -25,10 +28,26 @@ from argparse import ArgumentParser
 logger = logging.getLogger(__name__)
 
 
+def profile(func):
+    def wrapper(*args, **kwargs):
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = func(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = pstats.SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        logger.info(ps.print_stats())
+        logger.info(s.getvalue())
+        return retval
+
+    return wrapper
+
+
 def get_test_folders(xml_folder):
     return [test_folder for test_folder in next(os.walk(xml_folder))[1]]
 
-
+@profile
 def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=False, include_op_phi=False):
     configure_logging()
     start_time = time.perf_counter()
