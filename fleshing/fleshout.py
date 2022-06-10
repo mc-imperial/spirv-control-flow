@@ -1347,17 +1347,17 @@ class Path:
 
 
     def __key(self):
-        return (self.id_path, self.barrier_blocks, self.switch2edges) 
+        return (tuple(self.id_path), frozenset(self.barrier_blocks), tuple(sorted(self.switch2edges))) 
 
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, Path):
-            return self.__key == other.__key
+            return self.__key() == other.__key()
         return NotImplemented
     
 
     def __hash__(self) -> int:
-        return hash(self.__key)
+        return hash(self.__key())
 
 
 def get_barrier_blocks(cfg: CFG, path: Path, likelihood_percentage: int, rng) -> set:
@@ -1369,8 +1369,8 @@ def generate_paths(original_path, cfg, rng, path_length) -> List[Path]:
     paths = [original_path]
     for _ in range(MAX_PATH_GENERATION_ATTEMPTS):
         new_path = cfg.generate_path(rng, path_length)
-        if original_path.is_compatible(new_path):
-            new_path.barrier_blocks = original_path.barrier_blocks
+        new_path.barrier_blocks = original_path.barrier_blocks
+        if original_path.is_compatible(new_path) and new_path != original_path:
             paths.append(new_path)
     return paths
 
