@@ -932,7 +932,8 @@ class CFG:
                  x_workgroups: int, 
                  y_workgroups: int, 
                  z_workgroups: int, 
-                 include_op_phi: bool) -> str:
+                 include_op_phi: bool,
+                 include_path_swaps: bool) -> str:
         """
 ███████ ██      ███████ ███████ ██   ██ ██ ███    ██  ██████       ██████  ██    ██ ████████ 
 ██      ██      ██      ██      ██   ██ ██ ████   ██ ██           ██    ██ ██    ██    ██    
@@ -975,6 +976,10 @@ class CFG:
         constants.update([constant for path in paths for constant in path.constants])
         constants.update([str(val) for val in unique_array_sizes])
 
+        if include_path_swaps:
+            num_barrier_visits = sum([1 if block in paths[0].barrier_blocks else 0 for block in paths[0].label_path])
+            constants.add(str(num_barrier_visits * total_num_threads))
+
         tab: str = '               '
         constants2string = '\n'
         constants2string += tab + f"%dummy_val = OpConstant %{str(self.UINT_TYPE_ID)} {str(666)}\n"
@@ -994,6 +999,11 @@ class CFG:
         types_variables += '\n' + tab + 'OpDecorate %output_struct_type BufferBlock\n' + \
                                   tab + 'OpMemberDecorate %output_struct_type 0 Offset 0\n' + \
                                   tab + 'OpDecorate %output_array_type ArrayStride 4\n'
+
+        if include_path_swaps:
+            types_variables += '\n' + tab + 'OpDecorate %path_swaps_struct_type BufferBlock\n' + \
+                            tab + 'OpMemberDecorate %path_swaps_struct_type 0 Offset 0\n' + \
+                            tab + 'OpDecorate %path_swaps_array_type ArrayStride 4\n'
         
         bindings: Dict[str, int] = {}
         for i in conditional_block_ids:
@@ -1010,6 +1020,11 @@ class CFG:
         types_variables += '\n' + tab + 'OpDecorate %output_index_variable DescriptorSet 0\n' + \
                                   tab + 'OpDecorate %output_index_variable Binding ' + str(len(bindings)) + '\n'
         bindings['output_index'] = len(bindings)
+
+        if include_path_swaps:
+            types_variables += '\n' + tab + 'OpDecorate %path_swaps_variable DescriptorSet 0\n' + \
+                                  tab + 'OpDecorate %path_swaps_variable Binding ' + str(len(bindings)) + '\n'
+            bindings['path_swaps'] = len(bindings)
 
         storage_buffers = ''
         for s in set(unique_array_sizes):
@@ -1029,9 +1044,16 @@ class CFG:
                                   tab + '%output_struct_type = OpTypeStruct %output_array_type\n' + \
                                   tab + '%output_pointer_type = OpTypePointer Uniform %output_struct_type\n'+ \
                                   tab + '%output_variable = OpVariable %output_pointer_type Uniform\n'+ \
-                                  tab + f"%output_index_variable = OpVariable %size_{str(array_sizes['index'])}_pointer_type Uniform\n\n"+ \
-                                  tab + '%local_int_ptr = OpTypePointer Function %' + str(self.UINT_TYPE_ID) + '\n'+ \
-                                  tab + '%storage_buffer_int_ptr = OpTypePointer Uniform %' + str(self.UINT_TYPE_ID) + '\n'
+                                  tab + f"%output_index_variable = OpVariable %size_{str(array_sizes['index'])}_pointer_type Uniform\n\n"
+
+        if include_path_swaps:
+            storage_buffers += '\n' + tab + '%path_swaps_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(num_barrier_visits * total_num_threads) + '\n' + \
+                                  tab + '%path_swaps_struct_type = OpTypeStruct %path_swaps_array_type\n' + \
+                                  tab + '%path_swaps_pointer_type = OpTypePointer Uniform %path_swaps_struct_type\n'+ \
+                                  tab + '%path_swaps_variable = OpVariable %path_swaps_pointer_type Uniform\n'
+
+        storage_buffers += tab + '%local_int_ptr = OpTypePointer Function %' + str(self.UINT_TYPE_ID) + '\n'+ \
+                           tab + '%storage_buffer_int_ptr = OpTypePointer Uniform %' + str(self.UINT_TYPE_ID) + '\n'
 
         end = '\n\n END\n\n'
 
@@ -1045,7 +1067,10 @@ class CFG:
                 .format(block_id, ' '.join([str(direction) for direction in directions[block_id]]))
             end += ' BUFFER directions_{0}_index DATA_TYPE uint32 STD430 DATA {1} END\n'\
                 .format(block_id, ' '.join([str(index) for index in index_offsets[block_id]]))
-        
+
+        if include_path_swaps:
+            end += " BUFFER path_swaps DATA_TYPE uint32 STD430 DATA {0} END \n"\
+                .format([prng.randrange(total_num_threads) for _ in range(num_barrier_visits * total_num_threads)])        
 
         end += """
  BUFFER output DATA_TYPE uint32 STD430 SIZE {0} FILL 0
@@ -1157,6 +1182,7 @@ SHADER compute compute_shader SPIRV-ASM
         
         path_ids: Set[str] = set(id for path in paths for id in path.id_path)
         exit_blocks: Set[str] = set(path.id_path[-1] for path in paths)
+
         result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_local_threads, prng, include_op_phi, path_ids, set(conditional_block_ids), exit_blocks) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
@@ -1360,7 +1386,7 @@ class Path:
         return hash(self.__key())
 
 
-def get_barrier_blocks(cfg: CFG, path: Path, likelihood_percentage: int, rng) -> set:
+def choose_barrier_blocks(cfg: CFG, path: Path, likelihood_percentage: int, rng) -> set:
     return set(block for block in path.label_path if block != cfg.entry_block and rng.choices([True, False], [likelihood_percentage, 100-likelihood_percentage], k=1)[0])
 
 
@@ -1375,7 +1401,7 @@ def generate_paths(original_path, cfg, rng, path_length) -> List[Path]:
     return paths
 
 
-def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True, use_different_paths=True):
+def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=True, include_op_phi=True, use_different_paths=True, include_path_swaps=True):
     rng = Random()
     if seed is None:
         seed = random.randrange(0, sys.maxsize)
@@ -1409,7 +1435,7 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
               get_switch_blocks(instance))
 
     path: Path = cfg.generate_path(rng, path_length)
-    path.barrier_blocks = get_barrier_blocks(cfg, path, 40, rng) if include_barriers else set()
+    path.barrier_blocks = choose_barrier_blocks(cfg, path, 40, rng) if include_barriers else set()
     paths: List[Path] = generate_paths(path, cfg, rng, path_length) if use_different_paths else [path]
     num_required_paths = CFG.compute_num_threads(num_x_threads, num_y_threads, num_z_threads) * CFG.compute_num_workgroups(num_x_workgroups, num_y_workgroups, num_z_workgroups)
     paths = [rng.choice(paths) for _ in range(num_required_paths)]
@@ -1423,7 +1449,8 @@ def fleshout(xml_file, path_length=MAX_PATH_LENGTH, seed=None, x_threads=1, y_th
                                          num_x_workgroups,
                                          num_y_workgroups,
                                          num_z_workgroups, 
-                                         include_op_phi) 
+                                         include_op_phi,
+                                         include_path_swaps) 
 
 
 def parse_args():
