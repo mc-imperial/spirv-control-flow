@@ -1070,7 +1070,7 @@ class CFG:
 
         if include_path_swaps:
             end += " BUFFER path_swaps DATA_TYPE uint32 STD430 DATA {0} END \n"\
-                .format([prng.randrange(total_num_threads) for _ in range(num_barrier_visits * total_num_threads)])        
+                .format(' '.join([str(prng.randrange(total_num_threads)) for _ in range(num_barrier_visits * total_num_threads)]))        
 
         end += """
  BUFFER output DATA_TYPE uint32 STD430 SIZE {0} FILL 0
