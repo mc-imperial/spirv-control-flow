@@ -13,12 +13,13 @@
 # limitations under the License.
 from __future__ import annotations
 
-import sys
-import random
-import xml.etree.ElementTree as elementTree
 import argparse
-from collections import defaultdict, deque
+from multiprocessing import Barrier
+import random
+import sys
+import xml.etree.ElementTree as elementTree
 
+from collections import defaultdict, deque
 from random import Random
 from typing import Deque, DefaultDict, Dict, List, Set
 
@@ -485,6 +486,7 @@ def is_break_block(instance, block):
         return any(is_merge(instance, m) for m in jump[block])
     return False
 
+
 def is_loop_branch_block(instance, block):
     jump = get_jump_relation(instance).copy()
     loop_headers = get_loop_header_blocks(instance).copy()
@@ -506,6 +508,26 @@ def compute_reverse_graph(graph):
         for neighbour in graph[node]:
             reverse[neighbour].add(node)
     return reverse
+
+
+def transform_path_with_swap(path: Path, paths: List[Path], path_swaps: List[int], barrier_indices: List[List[int]]) -> Path:
+    new_label_path = []
+    for idx, swap in enumerate(path_swaps, 1):
+        curr_path = paths[swap]
+        start_idx = barrier_indices[swap][idx-1]
+        end_idx = len(curr_path.label_path) if idx >= len(barrier_indices[swap]) else barrier_indices[swap][idx] 
+        segment = curr_path.label_path[start_idx:end_idx]
+        new_label_path += segment
+    return Path(path.cfg, path.rng, new_label_path)
+
+
+def transform_paths_with_swaps(paths: List[Path], path_swaps: List[List[int]]) -> List[Path]:
+    barrier_indices = [path.compute_barrier_indices() for path in paths]
+    new_paths = []
+    for path_idx, (path, swaps) in enumerate(zip(paths, path_swaps)):
+        new_path = transform_path_with_swap(path, paths, [path_idx] + swaps, barrier_indices)
+        new_paths.append(new_path)
+    return new_paths
 
 
 class CFG:
@@ -944,16 +966,20 @@ class CFG:
         all_blocks_id: List[str] = [self.label_to_id[block] for block in self.all_blocks]
         all_blocks_id.sort()
 
+        num_local_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
+        num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
+        total_num_threads = num_local_threads * num_workgroups
+        num_barrier_visits = sum([1 if block in paths[0].barrier_blocks else 0 for block in paths[0].label_path])
+        if include_path_swaps and num_barrier_visits > 0:
+            path_swaps = [[prng.randrange(total_num_threads) for _ in range(num_barrier_visits)] for _ in range(total_num_threads)]
+            paths = transform_paths_with_swaps(paths, path_swaps)
+
         conditional_block_ids: List[str] = list(set([id for path in paths for id in path.conditional_block_ids]))
         conditional_block_ids.sort()
         # add constants: 0: to initialize counter variables to 0
         #                1: for incrementing counter variables
         #                2: for incrementing the last output index
         constants: Set[str] = {str(0), str(1), str(2)}.union(set(all_blocks_id))
-
-        num_local_threads = self.compute_num_threads(x_threads, y_threads, z_threads)
-        num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
-        total_num_threads = num_local_threads * num_workgroups
         constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups, num_local_threads, total_num_threads])
 
         # find the sizes of the input and output arrays
@@ -976,8 +1002,7 @@ class CFG:
         constants.update([constant for path in paths for constant in path.constants])
         constants.update([str(val) for val in unique_array_sizes])
 
-        if include_path_swaps:
-            num_barrier_visits = sum([1 if block in paths[0].barrier_blocks else 0 for block in paths[0].label_path])
+        if include_path_swaps and num_barrier_visits > 0:
             constants.add(str(num_barrier_visits * total_num_threads))
 
         tab: str = '               '
@@ -1000,7 +1025,7 @@ class CFG:
                                   tab + 'OpMemberDecorate %output_struct_type 0 Offset 0\n' + \
                                   tab + 'OpDecorate %output_array_type ArrayStride 4\n'
 
-        if include_path_swaps:
+        if include_path_swaps and num_barrier_visits > 0:
             types_variables += '\n' + tab + 'OpDecorate %path_swaps_struct_type BufferBlock\n' + \
                             tab + 'OpMemberDecorate %path_swaps_struct_type 0 Offset 0\n' + \
                             tab + 'OpDecorate %path_swaps_array_type ArrayStride 4\n'
@@ -1021,7 +1046,7 @@ class CFG:
                                   tab + 'OpDecorate %output_index_variable Binding ' + str(len(bindings)) + '\n'
         bindings['output_index'] = len(bindings)
 
-        if include_path_swaps:
+        if include_path_swaps and num_barrier_visits > 0:
             types_variables += '\n' + tab + 'OpDecorate %path_swaps_variable DescriptorSet 0\n' + \
                                   tab + 'OpDecorate %path_swaps_variable Binding ' + str(len(bindings)) + '\n'
             bindings['path_swaps'] = len(bindings)
@@ -1046,7 +1071,7 @@ class CFG:
                                   tab + '%output_variable = OpVariable %output_pointer_type Uniform\n'+ \
                                   tab + f"%output_index_variable = OpVariable %size_{str(array_sizes['index'])}_pointer_type Uniform\n\n"
 
-        if include_path_swaps:
+        if include_path_swaps and num_barrier_visits > 0:
             storage_buffers += '\n' + tab + '%path_swaps_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(num_barrier_visits * total_num_threads) + '\n' + \
                                   tab + '%path_swaps_struct_type = OpTypeStruct %path_swaps_array_type\n' + \
                                   tab + '%path_swaps_pointer_type = OpTypePointer Uniform %path_swaps_struct_type\n'+ \
@@ -1068,9 +1093,9 @@ class CFG:
             end += ' BUFFER directions_{0}_index DATA_TYPE uint32 STD430 DATA {1} END\n'\
                 .format(block_id, ' '.join([str(index) for index in index_offsets[block_id]]))
 
-        if include_path_swaps:
+        if include_path_swaps and num_barrier_visits > 0:
             end += " BUFFER path_swaps DATA_TYPE uint32 STD430 DATA {0} END \n"\
-                .format(' '.join([str(prng.randrange(total_num_threads)) for _ in range(num_barrier_visits * total_num_threads)]))        
+                .format(' '.join([str(swap) for swaps in path_swaps for swap in swaps]))        
 
         end += """
  BUFFER output DATA_TYPE uint32 STD430 SIZE {0} FILL 0
@@ -1190,26 +1215,14 @@ SHADER compute compute_shader SPIRV-ASM
         return result_fleshed
 
 
-    def random_path_of_desired_length_without_passing_through_doomed(self, start, length, current_iteration_vector, iteration_vectors, prng):
+    def random_path_of_desired_length_without_passing_through_doomed(self, start, length, prng):
         if start not in self.non_doomed_graph:
             raise AllTerminalNodesUnreachableError()
-        return self.find_random_path(start, length, [], current_iteration_vector, iteration_vectors, prng)
+        return self.find_random_path(start, length, [], prng)
 
 
-    def update_iteration_vectors(self, node, current_iteration_vector, iteration_vectors):
-        if node in self.merge_to_loop_header:
-            current_iteration_vector[self.merge_to_loop_header[node]] = 0
-
-        if node in self.loop_header_blocks:
-            current_iteration_vector[node] += 1
-
-        iteration_vectors[node].append(current_iteration_vector.copy())
-
-
-    def find_random_path(self, src, target_length, path, current_iteration_vector, iteration_vectors, prng):
+    def find_random_path(self, src, target_length, path, prng):
         path.append(src)
-
-        self.update_iteration_vectors(src, current_iteration_vector, iteration_vectors)
 
         if len(path) >= target_length:
             return path
@@ -1219,10 +1232,10 @@ SHADER compute compute_shader SPIRV-ASM
             return path
         
         next_node = prng.choice(self.non_doomed_graph[src])
-        return self.find_random_path(next_node, target_length, path, current_iteration_vector, iteration_vectors, prng)
+        return self.find_random_path(next_node, target_length, path, prng)
 
 
-    def find_path_to_exit_node(self, graph, src, current_iteration_vector, iteration_vectors):
+    def find_path_to_exit_node(self, graph, src):
         # BFS where termination condition is reaching an exit node.
         # Since the graph is unweighted this will also give us the
         # shortest path to an exit node.
@@ -1232,10 +1245,6 @@ SHADER compute compute_shader SPIRV-ASM
         queue.append(src)
         while queue:
             n = queue.popleft()
-
-            if n != src:
-                self.update_iteration_vectors(n, current_iteration_vector, iteration_vectors)
-
             if n in self.exit_blocks:
                 return recover_bfs_path(src, n, parents) 
 
@@ -1250,27 +1259,24 @@ SHADER compute compute_shader SPIRV-ASM
 
 
     def generate_path(self, prng, max_path_length=MAX_PATH_LENGTH) -> Path:
-        current_iteration_vector = dict((block, 0) for block in self.loop_header_blocks)
-        iteration_vectors: DefaultDict[str, List[Dict[str, int]]] = defaultdict(list)
         rand_path_prefix = self.random_path_of_desired_length_without_passing_through_doomed(self.entry_block,
                                                                                              max_path_length,
-                                                                                             current_iteration_vector,
-                                                                                             iteration_vectors,
                                                                                              prng)
         if rand_path_prefix[-1] not in self.exit_blocks:
-            rand_path_suffix = self.find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1], current_iteration_vector, iteration_vectors)
+            rand_path_suffix = self.find_path_to_exit_node(self.jump_relation, rand_path_prefix[-1])
             assert rand_path_suffix is not None
             rand_path_prefix += rand_path_suffix[1:]
-        return Path(self, prng, rand_path_prefix, iteration_vectors)
+
+        return Path(self, prng, rand_path_prefix)
 
 
 class Path:
 
-    def __init__(self, cfg: CFG, rng: Random, path: List[str], iteration_vectors: DefaultDict[str, List[Dict[str, int]]]) -> None:
+    def __init__(self, cfg: CFG, rng: Random, path: List[str]) -> None:
         self.cfg: CFG = cfg
         self.rng: Random = rng
         self.label_path: List[str] = path
-        self.iteration_vectors: DefaultDict[str, List[Dict[str, int]]] = iteration_vectors
+        self.iteration_vectors: Dict[str, List[Dict[str, int]]] = self.compute_iteration_vectors()
         self.id_path: List[str] = [cfg.get_block_id(label) for label in path]
         self.conditional_block_labels: List[str] = cfg.get_conditional_blocks_in_path(path)
         self.conditional_block_ids: List[str] = [cfg.get_block_id(label) for label in self.conditional_block_labels]
@@ -1339,7 +1345,39 @@ class Path:
     
 
     def is_compatible(self, other: Path) -> bool:
-        return all([self.iteration_vectors[block] == other.iteration_vectors[block] for block in self.barrier_blocks.union(other.barrier_blocks)])
+        for block in self.barrier_blocks.union(other.barrier_blocks):
+            if block not in other.iteration_vectors or block not in self.iteration_vectors:
+                return False 
+            other_barriers = other.iteration_vectors[block]
+            self_barriers = self.iteration_vectors[block]
+            if other_barriers != self_barriers:
+                return False
+        return True
+
+
+    def compute_barrier_indices(self) -> List[int]:
+        indices = []
+        indices.append(0)
+        for idx, label in enumerate(self.label_path):
+            if label in self.barrier_blocks:
+                indices.append(idx)
+        return indices
+
+
+    def compute_iteration_vectors(self) -> Dict[str, List[Dict[str, int]]]:
+        current_iteration_vector = dict((block, 0) for block in self.cfg.loop_header_blocks)
+        iteration_vectors: Dict[str, List[Dict[str, int]]] = {}
+        for label in self.label_path:
+            if label in self.cfg.merge_to_loop_header:
+                current_iteration_vector[self.cfg.merge_to_loop_header[label]] = 0
+
+            if label in self.cfg.loop_header_blocks:
+                current_iteration_vector[label] += 1
+
+            if label not in iteration_vectors:
+                iteration_vectors[label] = []
+            iteration_vectors[label].append(current_iteration_vector.copy())
+        return iteration_vectors
 
 
     def __len__(self) -> int:
