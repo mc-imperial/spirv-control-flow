@@ -14,14 +14,13 @@
 from __future__ import annotations
 
 import argparse
-from multiprocessing import Barrier
 import random
 import sys
 import xml.etree.ElementTree as elementTree
 
 from collections import defaultdict, deque
 from random import Random
-from typing import Deque, DefaultDict, Dict, List, Set
+from typing import Deque, DefaultDict, Dict, List, Set, Tuple
 
 
 MAX_PATH_LENGTH = 900 # Python has a limit on recursion depth of around 1000
@@ -530,6 +529,58 @@ def transform_paths_with_swaps(paths: List[Path], path_swaps: List[List[int]]) -
     return new_paths
 
 
+def compute_path_swaps(paths: List[Path], num_barrier_visits: int, prng: Random, num_workgroups: int, threads_per_workgroup: int):
+    swap_idxs = [[workgroup * threads_per_workgroup + i for i in range(threads_per_workgroup)] for workgroup in range(num_workgroups)]
+    path_swaps = [[e for workgroup in swap_idxs for e in workgroup]]
+    for _ in range(num_barrier_visits):
+        for workgroup_idx in range(num_workgroups):
+            prng.shuffle(swap_idxs[workgroup_idx])
+        path_swaps.append([e for workgroup in swap_idxs for e in workgroup])
+    return path_swaps
+
+
+def expected_output_after_swaps(paths: List[Path], num_barrier_visits: int, prng: Random, num_workgroups: int, threads_per_workgroup: int) -> Tuple[List[List[str]], List[List[int]]]:
+    assert num_barrier_visits > 0 and len(paths) > 0
+    barrier_indices = [path.compute_barrier_indices() for path in paths]
+    path_swaps: List[List[int]] = compute_path_swaps(paths, num_barrier_visits, prng, num_workgroups, threads_per_workgroup)
+    # new_paths: List[List[str]] = [path.id_path[:barrier_indices[idx][0]] for idx, path in enumerate(paths)]
+
+    new_paths: List[List[str]] = [[] for _ in paths]
+    for swap_round in range(num_barrier_visits+1):
+        swaps = path_swaps[swap_round]
+        for old_tid in range(len(swaps)):
+            new_tid = path_swaps[swap_round-1][swaps[old_tid]] if swap_round > 0 else old_tid
+            new_path = paths[new_tid]
+            curr_barrier_idx = barrier_indices[new_tid][swap_round]
+            next_barrier_idx = barrier_indices[new_tid][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
+            new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
+
+    # for swap_round in range(1):
+    #     swaps = path_swaps[swap_round]
+    #     for old_tid, new_tid in enumerate(swaps):
+    #         new_path = paths[new_tid]
+    #         curr_barrier_idx = barrier_indices[new_tid][swap_round]
+    #         next_barrier_idx = barrier_indices[new_tid][swap_round+1] if swap_round < len(path_swaps) else len(new_path.id_path)
+    #         new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
+    
+    # for swap_round in range(1, 3):
+    #     swaps = path_swaps[swap_round]
+    #     for old_tid in range(len(swaps)):
+    #         new_tid = path_swaps[swap_round-1][swaps[old_tid]]
+    #         new_path = paths[new_tid]
+    #         curr_barrier_idx = barrier_indices[new_tid][swap_round]
+    #         next_barrier_idx = barrier_indices[new_tid][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
+    #         new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
+    
+    # for old_tid in range(len(swaps)):
+    #     new_tid = path_swaps[swap_round-1][swaps[old_tid]]
+    #     curr_barrier_idx = barrier_indices[new_tid][2]
+    #     new_paths[old_tid] += paths[new_tid].id_path[curr_barrier_idx:]
+
+    flattened_path_swaps = [[arr[i] for arr in path_swaps[1:]] for i in range(len(path_swaps[0]))]
+    return new_paths, flattened_path_swaps
+
+
 class CFG:
     VOID_TYPE_ID: int = 1
     MAIN_FUNCTION_TYPE_ID: int = 2
@@ -772,12 +823,35 @@ class CFG:
         return idx if occurrence <= 1 else idx + 1 + CFG.find_nth_occurrence(haystack[idx+1:], needle, occurrence-1)
 
 
-    @staticmethod
-    def add_barrier(block_output: str, start_line: int, prng) -> str:
+    def add_barrier(self, block_id: str, block_output: str, start_line: int, prng, conditional_block_ids: Set[str], include_path_swap: bool) -> str:
         barrier_line_offset = prng.randint(start_line, block_output.count("\n"))
         line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
         barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
-        return block_output[:line_idx+1] + barrier_line + block_output[line_idx+1:]
+        instructions = "\n"
+        if include_path_swap:
+            instructions += "               ; Path swapping code\n"
+            for id in conditional_block_ids:
+                instructions += "               %" + block_id + "_directions_" + id + "_index_temp = OpLoad %" + str(self.UINT_TYPE_ID) + " %directions_" + id + "_index\n"
+            for id in conditional_block_ids:
+                instructions += "               OpStore %directions_" + id + "_start_idx_ptr %" + block_id + "_directions_" + id + "_index_temp\n"
+        
+        instructions += barrier_line
+
+        if include_path_swap:
+            instructions += f"               %{block_id}_swap_index = OpLoad %{self.UINT_TYPE_ID} %swap_index\n"
+            instructions += f"               %{block_id}_swap_ptr = OpAccessChain %storage_buffer_int_ptr %path_swaps_variable %constant_0 %{block_id}_swap_index\n"
+            instructions += f"               %{block_id}_next_tid = OpLoad %{self.UINT_TYPE_ID} %{block_id}_swap_ptr\n"
+            instructions += f"               %{block_id}_next_swap_index = OpIAdd %{self.UINT_TYPE_ID} %{block_id}_swap_index %constant_1\n"
+            instructions += f"               OpStore %swap_index %{block_id}_next_swap_index\n"
+
+            for id in conditional_block_ids:
+                instructions += f"               %directions_{id}_swap_{block_id}_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_{id}_index_variable %constant_0 %{block_id}_next_tid\n"
+            for id in conditional_block_ids:
+                instructions += f"               %{block_id}_directions_{id}_offset = OpLoad %{self.UINT_TYPE_ID} %directions_{id}_swap_{block_id}_idx_ptr\n"
+            for id in conditional_block_ids:
+                instructions += f"               OpStore %directions_{id}_index %{block_id}_directions_{id}_offset\n"
+
+        return block_output[:line_idx+1] + instructions + "\n" + block_output[line_idx+1:]
     
 
     def create_op_phi_instructions(self, label, predecessors, num_successors, path_ids, indent1):
@@ -815,7 +889,9 @@ class CFG:
                                  include_op_phi: bool,
                                  path_ids: Set[str],
                                  conditional_block_ids: Set[str],
-                                 exit_blocks: Set[str]) -> str:
+                                 exit_blocks: Set[str],
+                                 include_path_swaps: bool,
+                                 num_barrier_visits: int) -> str:
         block_id: str = self.get_block_id(label)
         indent0 = self.indented_block_label(block_id)
         indent1 = ' '*(len("               ") - (len(block_id) + len("%temp___ = ")))
@@ -827,6 +903,9 @@ class CFG:
             result += '               %output_index = OpVariable %local_int_ptr Function %constant_0\n'
             for block in conditional_block_ids:
                 result += '               %directions_' + str(block) + '_index = OpVariable %local_int_ptr Function %constant_0\n'
+
+            if include_path_swaps:
+                result += '               %swap_index = OpVariable %local_int_ptr Function %constant_0\n'
 
             result += '\n               %local_invocation_idx = OpLoad %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx_var\n'
 
@@ -856,6 +935,10 @@ class CFG:
                 result += '               OpStore %directions_' + str(block) + '_index %directions_' + str(block) + '_offset\n' 
             result += '               OpStore %output_index %output_offset\n'
 
+            if include_path_swaps:
+                result += '               %swap_index_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %thread_index_offset %constant_' + str(num_barrier_visits) + '\n'
+                result += '               OpStore %swap_index %swap_index_offset\n'
+
             result += '\n'
 
         predecessors = self.reverse_graph[label]
@@ -874,6 +957,10 @@ class CFG:
 
             if not include_op_phi:
                 result += '               OpStore %output_index %temp_' + block_id + '_2\n'
+
+            # include barriers at any location before loading directions index
+            if label in paths[0].barrier_blocks and include_path_swaps:
+                result = self.add_barrier(block_id, result, 2 + num_op_phi, prng, conditional_block_ids, include_path_swaps)
 
             if block_id in conditional_block_ids:
                 if not include_op_phi or label == self.entry_block:
@@ -898,8 +985,8 @@ class CFG:
                     result += indent1 + '%' + block_id + '_target_' + str(successor) + ' = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + str(successor) + '_index\n'
 
             # include barriers at any location before the final jump/return
-            if label in paths[0].barrier_blocks:
-                result = CFG.add_barrier(result, 2 + num_op_phi, prng)
+            if label in paths[0].barrier_blocks and not include_path_swaps:
+                result = self.add_barrier(block_id, result, 2 + num_op_phi, prng, conditional_block_ids, include_path_swaps)
 
         if label in self.loop_header_blocks:
             assert num_successors == 1 or num_successors == 2
@@ -970,9 +1057,11 @@ class CFG:
         num_workgroups = self.compute_num_workgroups(x_workgroups, y_workgroups, z_workgroups)
         total_num_threads = num_local_threads * num_workgroups
         num_barrier_visits = sum([1 if block in paths[0].barrier_blocks else 0 for block in paths[0].label_path])
-        if include_path_swaps and num_barrier_visits > 0:
-            path_swaps = [[prng.randrange(total_num_threads) for _ in range(num_barrier_visits)] for _ in range(total_num_threads)]
-            paths = transform_paths_with_swaps(paths, path_swaps)
+        if num_barrier_visits < 1:
+            include_path_swaps = False
+
+        if include_path_swaps:
+            expected_swapped_output, path_swaps = expected_output_after_swaps(paths, num_barrier_visits, prng, num_workgroups, num_local_threads)
 
         conditional_block_ids: List[str] = list(set([id for path in paths for id in path.conditional_block_ids]))
         conditional_block_ids.sort()
@@ -1002,7 +1091,8 @@ class CFG:
         constants.update([constant for path in paths for constant in path.constants])
         constants.update([str(val) for val in unique_array_sizes])
 
-        if include_path_swaps and num_barrier_visits > 0:
+        if include_path_swaps:
+            constants.add(str(num_barrier_visits))
             constants.add(str(num_barrier_visits * total_num_threads))
 
         tab: str = '               '
@@ -1025,8 +1115,8 @@ class CFG:
                                   tab + 'OpMemberDecorate %output_struct_type 0 Offset 0\n' + \
                                   tab + 'OpDecorate %output_array_type ArrayStride 4\n'
 
-        if include_path_swaps and num_barrier_visits > 0:
-            types_variables += '\n' + tab + 'OpDecorate %path_swaps_struct_type BufferBlock\n' + \
+        if include_path_swaps:
+            types_variables +=   '\n' + tab + 'OpDecorate %path_swaps_struct_type BufferBlock\n' + \
                             tab + 'OpMemberDecorate %path_swaps_struct_type 0 Offset 0\n' + \
                             tab + 'OpDecorate %path_swaps_array_type ArrayStride 4\n'
         
@@ -1046,8 +1136,8 @@ class CFG:
                                   tab + 'OpDecorate %output_index_variable Binding ' + str(len(bindings)) + '\n'
         bindings['output_index'] = len(bindings)
 
-        if include_path_swaps and num_barrier_visits > 0:
-            types_variables += '\n' + tab + 'OpDecorate %path_swaps_variable DescriptorSet 0\n' + \
+        if include_path_swaps:
+            types_variables +=   '\n' + tab + 'OpDecorate %path_swaps_variable DescriptorSet 0\n' + \
                                   tab + 'OpDecorate %path_swaps_variable Binding ' + str(len(bindings)) + '\n'
             bindings['path_swaps'] = len(bindings)
 
@@ -1071,8 +1161,8 @@ class CFG:
                                   tab + '%output_variable = OpVariable %output_pointer_type Uniform\n'+ \
                                   tab + f"%output_index_variable = OpVariable %size_{str(array_sizes['index'])}_pointer_type Uniform\n\n"
 
-        if include_path_swaps and num_barrier_visits > 0:
-            storage_buffers += '\n' + tab + '%path_swaps_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(num_barrier_visits * total_num_threads) + '\n' + \
+        if include_path_swaps:
+            storage_buffers +=   '\n' + tab + '%path_swaps_array_type = OpTypeArray %' + str(self.UINT_TYPE_ID) + ' %constant_' + str(num_barrier_visits * total_num_threads) + '\n' + \
                                   tab + '%path_swaps_struct_type = OpTypeStruct %path_swaps_array_type\n' + \
                                   tab + '%path_swaps_pointer_type = OpTypePointer Uniform %path_swaps_struct_type\n'+ \
                                   tab + '%path_swaps_variable = OpVariable %path_swaps_pointer_type Uniform\n'
@@ -1093,7 +1183,7 @@ class CFG:
             end += ' BUFFER directions_{0}_index DATA_TYPE uint32 STD430 DATA {1} END\n'\
                 .format(block_id, ' '.join([str(index) for index in index_offsets[block_id]]))
 
-        if include_path_swaps and num_barrier_visits > 0:
+        if include_path_swaps:
             end += " BUFFER path_swaps DATA_TYPE uint32 STD430 DATA {0} END \n"\
                 .format(' '.join([str(swap) for swaps in path_swaps for swap in swaps]))        
 
@@ -1110,6 +1200,10 @@ class CFG:
                 .format(id, bindings[id])
             end += '   BIND BUFFER directions_{0}_index AS storage DESCRIPTOR_SET 0 BINDING {1}\n' \
                 .format(id, bindings[str(id) + "_index"])
+        
+        if include_path_swaps:
+            end += '   BIND BUFFER path_swaps AS storage DESCRIPTOR_SET 0 BINDING {0}'\
+                .format(bindings['path_swaps'])
 
         end += """
    BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING {0}
@@ -1122,12 +1216,19 @@ class CFG:
         for id in conditional_block_ids:
             end += ' EXPECT directions_{0} IDX 0 EQ {1}\n' \
                 .format(id, ' '.join([str(direction) for direction in directions[id]]))
-            end += ' EXPECT directions_{0}_index IDX 0 EQ {1}\n' \
-                .format(id, ' '.join([str(index) for index in index_offsets[id]]))
+            
+            if not include_path_swaps:
+                end += ' EXPECT directions_{0}_index IDX 0 EQ {1}\n' \
+                    .format(id, ' '.join([str(index) for index in index_offsets[id]]))
 
         expected_output = []
-        for path in paths:
-            expected_output += [id for id in path.id_path] + [str(0)]
+        for idx, path in enumerate(paths):
+            if include_path_swaps:
+                expected_output +=   expected_swapped_output[idx] + [str(0)]
+            else:
+                expected_output += [id for id in path.id_path] + [str(0)]
+
+        
         end += ' EXPECT output IDX 0 EQ {0}\n' \
             .format(' '.join(expected_output))
         end += ' EXPECT output_index IDX 0 EQ {0}\n' \
@@ -1208,7 +1309,7 @@ SHADER compute compute_shader SPIRV-ASM
         path_ids: Set[str] = set(id for path in paths for id in path.id_path)
         exit_blocks: Set[str] = set(path.id_path[-1] for path in paths)
 
-        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_local_threads, prng, include_op_phi, path_ids, set(conditional_block_ids), exit_blocks) for block in self.topological_ordering])
+        result_fleshed += "\n".join([self.block_to_string_fleshing(block, paths, x_workgroups, y_workgroups, num_local_threads, prng, include_op_phi, path_ids, set(conditional_block_ids), exit_blocks, include_path_swaps, num_barrier_visits) for block in self.topological_ordering])
         result_fleshed += "\n               OpFunctionEnd"
         result_fleshed += end
 
