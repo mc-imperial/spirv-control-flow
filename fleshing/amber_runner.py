@@ -28,7 +28,7 @@ from run_amber_on_android import execute_amber_on_android
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_AMBER_TIMEOUT = 10
+DEFAULT_AMBER_TIMEOUT = 20
 
 def execute_amber_on_host(amber_path: Path, amber_file_path: Path, timeout: int = DEFAULT_AMBER_TIMEOUT) -> AmberResult:
     cmd = [amber_path, "-d", "-t", "spv1.3", "-v", "1.1", amber_file_path]

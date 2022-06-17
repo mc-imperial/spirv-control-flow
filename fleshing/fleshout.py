@@ -546,14 +546,33 @@ def expected_output_after_swaps(paths: List[Path], num_barrier_visits: int, prng
     # new_paths: List[List[str]] = [path.id_path[:barrier_indices[idx][0]] for idx, path in enumerate(paths)]
 
     new_paths: List[List[str]] = [[] for _ in paths]
+    state = [[i for i in range(len(paths))]]
     for swap_round in range(num_barrier_visits+1):
-        swaps = path_swaps[swap_round]
-        for old_tid in range(len(swaps)):
-            new_tid = path_swaps[swap_round-1][swaps[old_tid]] if swap_round > 0 else old_tid
-            new_path = paths[new_tid]
-            curr_barrier_idx = barrier_indices[new_tid][swap_round]
-            next_barrier_idx = barrier_indices[new_tid][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
+        if swap_round > 0:
+            state.append([])
+        for old_tid in range(len(path_swaps[swap_round])):
+            swap_tid = path_swaps[swap_round][old_tid]
+            prev_round = swap_round - 1 if swap_round > 0 else 0
+            new_path_id = state[prev_round][swap_tid]
+            new_path = paths[new_path_id]
+            curr_barrier_idx = barrier_indices[new_path_id][swap_round]
+            next_barrier_idx = barrier_indices[new_path_id][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
             new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
+            if swap_round > 0:
+                state[swap_round].append(new_path_id)
+
+    # new_paths: List[List[str]] = [[] for _ in paths]
+    # for swap_round in range(num_barrier_visits+1):
+    #     swaps = path_swaps[swap_round]
+    #     new_tids = []
+    #     for old_tid in range(len(swaps)):
+    #         new_tid = path_swaps[swap_round-1][swaps[old_tid]] if swap_round > 0 else old_tid
+    #         new_tids.append(new_tid)
+    #         new_path = paths[new_tid]
+    #         curr_barrier_idx = barrier_indices[new_tid][swap_round]
+    #         next_barrier_idx = barrier_indices[new_tid][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
+    #         new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
+    #     print(new_tids)
 
     # for swap_round in range(1):
     #     swaps = path_swaps[swap_round]
@@ -823,10 +842,15 @@ class CFG:
         return idx if occurrence <= 1 else idx + 1 + CFG.find_nth_occurrence(haystack[idx+1:], needle, occurrence-1)
 
 
+    @staticmethod
+    def get_barrier_line() -> str:
+        return "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
+
+
     def add_barrier(self, block_id: str, block_output: str, start_line: int, prng, conditional_block_ids: Set[str], include_path_swap: bool) -> str:
         barrier_line_offset = prng.randint(start_line, block_output.count("\n"))
         line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
-        barrier_line = "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
+        barrier_line = CFG.get_barrier_line()
         instructions = "\n"
         if include_path_swap:
             instructions += "               ; Path swapping code\n"
@@ -850,6 +874,7 @@ class CFG:
                 instructions += f"               %{block_id}_directions_{id}_offset = OpLoad %{self.UINT_TYPE_ID} %directions_{id}_swap_{block_id}_idx_ptr\n"
             for id in conditional_block_ids:
                 instructions += f"               OpStore %directions_{id}_index %{block_id}_directions_{id}_offset\n"
+            instructions += barrier_line
 
         return block_output[:line_idx+1] + instructions + "\n" + block_output[line_idx+1:]
     
@@ -938,7 +963,9 @@ class CFG:
             if include_path_swaps:
                 result += '               %swap_index_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %thread_index_offset %constant_' + str(num_barrier_visits) + '\n'
                 result += '               OpStore %swap_index %swap_index_offset\n'
-
+            
+            barrier = CFG.get_barrier_line()
+            result += barrier
             result += '\n'
 
         predecessors = self.reverse_graph[label]
@@ -1076,13 +1103,21 @@ class CFG:
         index_offsets: DefaultDict[str, List[int]] = defaultdict(list)
         for path in paths:
             unvisited = set(conditional_block_ids).union({'output'})
-            for arr_name, size in path.array_sizes.items():
+            for idx, (arr_name, size) in enumerate(path.array_sizes.items()):
                 unvisited.remove(arr_name)
                 index_offsets[arr_name].append(array_sizes[arr_name])
                 array_sizes[arr_name] += size
             
             for arr_name in unvisited:
                 index_offsets[arr_name].append(0)
+        
+        if include_path_swaps:
+            swapped_output_indices: List[int] = []
+            counter = 0
+            for swapped_output in expected_swapped_output:
+                swapped_output_indices.append(counter)
+                counter += len(swapped_output) + 1 # Leave room for the zero at the end
+            index_offsets['output'] = swapped_output_indices
 
         # Set size of the arrays that will hold the starting indices for each thread
         array_sizes["index"] = total_num_threads
@@ -1224,7 +1259,7 @@ class CFG:
         expected_output = []
         for idx, path in enumerate(paths):
             if include_path_swaps:
-                expected_output +=   expected_swapped_output[idx] + [str(0)]
+                expected_output += expected_swapped_output[idx] + [str(0)]
             else:
                 expected_output += [id for id in path.id_path] + [str(0)]
 
