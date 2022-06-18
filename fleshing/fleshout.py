@@ -24,7 +24,7 @@ from typing import Deque, DefaultDict, Dict, List, Set, Tuple
 
 
 MAX_PATH_LENGTH = 900 # Python has a limit on recursion depth of around 1000
-
+SEQ_CONSISTENCY = 64
 
 class NoTerminalNodesInCFGError(Exception):
 
@@ -844,21 +844,24 @@ class CFG:
 
     @staticmethod
     def get_barrier_line() -> str:
-        return "               OpControlBarrier %constant_2 %constant_2 %constant_0 ; Barrier with Workgroup scope\n"
+        return "               OpControlBarrier %constant_2 %constant_2 %constant_64 ; Barrier with Workgroup scope\n"
 
 
-    def add_barrier(self, block_id: str, block_output: str, start_line: int, prng, conditional_block_ids: Set[str], include_path_swap: bool) -> str:
-        barrier_line_offset = prng.randint(start_line, block_output.count("\n"))
-        line_idx = CFG.find_nth_occurrence(block_output, "\n", barrier_line_offset)
+    def add_barrier(self, block_id: str, conditional_block_ids: Set[str], include_path_swap: bool) -> str:
         barrier_line = CFG.get_barrier_line()
         instructions = "\n"
         if include_path_swap:
             instructions += "               ; Path swapping code\n"
             for id in conditional_block_ids:
                 instructions += "               %" + block_id + "_directions_" + id + "_index_temp = OpLoad %" + str(self.UINT_TYPE_ID) + " %directions_" + id + "_index\n"
+            instructions += "               %" + block_id + "_output_index_temp = OpLoad %" + str(self.UINT_TYPE_ID) + " %output_index\n"    
+            instructions += "               %" + block_id + "_current_thread_id = OpLoad %" + str(self.UINT_TYPE_ID) + " %current_thread_id\n"    
             for id in conditional_block_ids:
-                instructions += "               OpStore %directions_" + id + "_start_idx_ptr %" + block_id + "_directions_" + id + "_index_temp\n"
-        
+                instructions += f"               %directions_{id}_pre_swap_{block_id}_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_{id}_index_variable %constant_0 %{block_id}_current_thread_id\n"
+            instructions += f"               %output_pre_swap_{block_id}_idx_ptr = OpAccessChain %storage_buffer_int_ptr %output_index_variable %constant_0 %{block_id}_current_thread_id\n"
+            for id in conditional_block_ids:
+                instructions += "               OpStore %directions_" + id + "_pre_swap_" + block_id + "_idx_ptr %" + block_id + "_directions_" + id + "_index_temp\n"
+            instructions += "               OpStore %output_pre_swap_" + block_id + "_idx_ptr %" + block_id + "_output_index_temp\n"      
         instructions += barrier_line
 
         if include_path_swap:
@@ -867,16 +870,20 @@ class CFG:
             instructions += f"               %{block_id}_next_tid = OpLoad %{self.UINT_TYPE_ID} %{block_id}_swap_ptr\n"
             instructions += f"               %{block_id}_next_swap_index = OpIAdd %{self.UINT_TYPE_ID} %{block_id}_swap_index %constant_1\n"
             instructions += f"               OpStore %swap_index %{block_id}_next_swap_index\n"
+            instructions += f"               OpStore %current_thread_id %{block_id}_next_tid\n"
 
             for id in conditional_block_ids:
                 instructions += f"               %directions_{id}_swap_{block_id}_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_{id}_index_variable %constant_0 %{block_id}_next_tid\n"
+            instructions += f"               %output_swap_{block_id}_idx_ptr = OpAccessChain %storage_buffer_int_ptr %output_index_variable %constant_0 %{block_id}_next_tid\n"
             for id in conditional_block_ids:
                 instructions += f"               %{block_id}_directions_{id}_offset = OpLoad %{self.UINT_TYPE_ID} %directions_{id}_swap_{block_id}_idx_ptr\n"
+            instructions += f"               %{block_id}_output_offset = OpLoad %{self.UINT_TYPE_ID} %output_swap_{block_id}_idx_ptr\n"
             for id in conditional_block_ids:
                 instructions += f"               OpStore %directions_{id}_index %{block_id}_directions_{id}_offset\n"
+            instructions += f"               OpStore %output_index %{block_id}_output_offset\n"
             instructions += barrier_line
 
-        return block_output[:line_idx+1] + instructions + "\n" + block_output[line_idx+1:]
+        return instructions + "\n"
     
 
     def create_op_phi_instructions(self, label, predecessors, num_successors, path_ids, indent1):
@@ -931,6 +938,7 @@ class CFG:
 
             if include_path_swaps:
                 result += '               %swap_index = OpVariable %local_int_ptr Function %constant_0\n'
+                result += '               %current_thread_id = OpVariable %local_int_ptr Function %constant_0\n'
 
             result += '\n               %local_invocation_idx = OpLoad %' + str(self.UINT_TYPE_ID) + ' %local_invocation_idx_var\n'
 
@@ -963,9 +971,11 @@ class CFG:
             if include_path_swaps:
                 result += '               %swap_index_offset = OpIMul %' + str(self.UINT_TYPE_ID) + ' %thread_index_offset %constant_' + str(num_barrier_visits) + '\n'
                 result += '               OpStore %swap_index %swap_index_offset\n'
-            
-            barrier = CFG.get_barrier_line()
-            result += barrier
+                result += '               OpStore %current_thread_id %thread_index_offset\n'
+
+            if num_barrier_visits > 0:    
+                barrier = CFG.get_barrier_line()
+                result += barrier
             result += '\n'
 
         predecessors = self.reverse_graph[label]
@@ -974,7 +984,11 @@ class CFG:
             if include_op_phi and label != self.entry_block:
                 result += self.create_op_phi_instructions(label, predecessors, num_successors, path_ids, indent1)        
                 num_op_phi += 2
-            else:
+
+            if label in paths[0].barrier_blocks and label not in self.exit_blocks:
+                result += self.add_barrier(block_id, conditional_block_ids, include_path_swaps)
+
+            if not include_op_phi or label == self.entry_block:
                 result += indent1 + '%temp_' + block_id + '_0 = OpLoad %' + str(self.UINT_TYPE_ID) + ' %output_index\n'
 
             output_increment = 2 if block_id in exit_blocks else 1
@@ -984,10 +998,6 @@ class CFG:
 
             if not include_op_phi:
                 result += '               OpStore %output_index %temp_' + block_id + '_2\n'
-
-            # include barriers at any location before loading directions index
-            if label in paths[0].barrier_blocks and include_path_swaps:
-                result = self.add_barrier(block_id, result, 2 + num_op_phi, prng, conditional_block_ids, include_path_swaps)
 
             if block_id in conditional_block_ids:
                 if not include_op_phi or label == self.entry_block:
@@ -1011,10 +1021,6 @@ class CFG:
                 for successor in successors:
                     result += indent1 + '%' + block_id + '_target_' + str(successor) + ' = OpLoad %' + str(self.UINT_TYPE_ID) + ' %directions_' + str(successor) + '_index\n'
 
-            # include barriers at any location before the final jump/return
-            if label in paths[0].barrier_blocks and not include_path_swaps:
-                result = self.add_barrier(block_id, result, 2 + num_op_phi, prng, conditional_block_ids, include_path_swaps)
-
         if label in self.loop_header_blocks:
             assert num_successors == 1 or num_successors == 2
             result += "               OpLoopMerge %{0} %{1} None\n".format(
@@ -1029,6 +1035,11 @@ class CFG:
         
         if label not in self.jump_relation:
             assert num_successors == 0
+            if block_id in path_ids and include_path_swaps:
+                return_barrier_code = self.add_barrier(block_id, conditional_block_ids, include_path_swaps)
+                first_barrier_idx = return_barrier_code.find("OpControlBarrier")
+                first_barrier_line_end = return_barrier_code.find("\n", first_barrier_idx)
+                result += return_barrier_code[:first_barrier_line_end+1]
             result += "               OpReturn" # Exit nodes are defined as having no successors. Can we use an alternative to OpReturn in some cases to make fleshing more interesting?
         elif label not in self.switch_blocks:
             assert num_successors == 1 or num_successors == 2
@@ -1088,7 +1099,7 @@ class CFG:
             include_path_swaps = False
 
         if include_path_swaps:
-            expected_swapped_output, path_swaps = expected_output_after_swaps(paths, num_barrier_visits, prng, num_workgroups, num_local_threads)
+            _, path_swaps = expected_output_after_swaps(paths, num_barrier_visits, prng, num_workgroups, num_local_threads)
 
         conditional_block_ids: List[str] = list(set([id for path in paths for id in path.conditional_block_ids]))
         conditional_block_ids.sort()
@@ -1096,28 +1107,32 @@ class CFG:
         #                1: for incrementing counter variables
         #                2: for incrementing the last output index
         constants: Set[str] = {str(0), str(1), str(2)}.union(set(all_blocks_id))
-        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups, num_local_threads, total_num_threads])
+        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups, num_local_threads, total_num_threads, SEQ_CONSISTENCY])
 
         # find the sizes of the input and output arrays
         array_sizes: DefaultDict[str, int] = defaultdict(int)
         index_offsets: DefaultDict[str, List[int]] = defaultdict(list)
+        if include_path_swaps:
+            expected_index_offsets: DefaultDict[str, List[int]] = defaultdict(list)
         for path in paths:
             unvisited = set(conditional_block_ids).union({'output'})
-            for idx, (arr_name, size) in enumerate(path.array_sizes.items()):
+            for arr_name, size in path.array_sizes.items():
                 unvisited.remove(arr_name)
                 index_offsets[arr_name].append(array_sizes[arr_name])
                 array_sizes[arr_name] += size
-            
+                if include_path_swaps:
+                    expected_index_offsets[arr_name].append(array_sizes[arr_name])
             for arr_name in unvisited:
                 index_offsets[arr_name].append(0)
-        
-        if include_path_swaps:
-            swapped_output_indices: List[int] = []
-            counter = 0
-            for swapped_output in expected_swapped_output:
-                swapped_output_indices.append(counter)
-                counter += len(swapped_output) + 1 # Leave room for the zero at the end
-            index_offsets['output'] = swapped_output_indices
+                if include_path_swaps:
+                    expected_index_offsets[arr_name].append(0)
+        # if include_path_swaps:
+        #     swapped_output_indices: List[int] = []
+        #     counter = 0
+        #     for swapped_output in expected_swapped_output:
+        #         swapped_output_indices.append(counter)
+        #         counter += len(swapped_output) + 1 # Leave room for the zero at the end
+        #     index_offsets['output'] = swapped_output_indices
 
         # Set size of the arrays that will hold the starting indices for each thread
         array_sizes["index"] = total_num_threads
@@ -1247,27 +1262,26 @@ class CFG:
  END
  RUN pipeline {2} {3} {4}\n
 """.format(bindings['output'], bindings['output_index'], x_workgroups, y_workgroups, z_workgroups)
-
+        
+        if not include_path_swaps:
+            expected_index_offsets = index_offsets
+        
         for id in conditional_block_ids:
             end += ' EXPECT directions_{0} IDX 0 EQ {1}\n' \
                 .format(id, ' '.join([str(direction) for direction in directions[id]]))
             
-            if not include_path_swaps:
-                end += ' EXPECT directions_{0}_index IDX 0 EQ {1}\n' \
-                    .format(id, ' '.join([str(index) for index in index_offsets[id]]))
+            end += ' EXPECT directions_{0}_index IDX 0 EQ {1}\n' \
+                .format(id, ' '.join([str(index) for index in expected_index_offsets[id]]))
 
         expected_output = []
-        for idx, path in enumerate(paths):
-            if include_path_swaps:
-                expected_output += expected_swapped_output[idx] + [str(0)]
-            else:
-                expected_output += [id for id in path.id_path] + [str(0)]
+        for path in paths:
+            expected_output += [id for id in path.id_path] + [str(0)]
 
         
         end += ' EXPECT output IDX 0 EQ {0}\n' \
             .format(' '.join(expected_output))
         end += ' EXPECT output_index IDX 0 EQ {0}\n' \
-            .format(' '.join([str(index) for index in index_offsets['output']]))
+            .format(' '.join([str(index) for index in expected_index_offsets['output']]))
 
 
         paths2string = ''
@@ -1542,7 +1556,12 @@ class Path:
             else:
                 path2string += b + ' -> ' + 'edge_' + str(self.switch2edges[block][occurrences[block]]) + ' -> '
                 occurrences[block] += 1
-        path2string += str(self.cfg.get_block_id(self.label_path[-1]))
+        final_block = self.label_path[-1]
+        if final_block in self.barrier_blocks:
+            final_block_str = f"b({self.cfg.get_block_id(final_block)})"
+        else:
+            final_block_str = str(self.cfg.get_block_id(final_block))
+        path2string += final_block_str
         return path2string
 
 
