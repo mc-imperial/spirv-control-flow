@@ -18,7 +18,9 @@ import pathlib
 import shutil
 
 from argparse import ArgumentParser
+from collections import defaultdict
 from pathlib import Path
+from typing import DefaultDict, List, Tuple
 
 
 def get_amber_files(folder):
@@ -83,6 +85,61 @@ def extract_asm(amber_file: Path) -> str:
     end_idx = lines.find('END')
     return lines[start_idx:end_idx]
 
+
+def get_state(line: str, state) -> str:
+    if "Execution count" in line and "Executing" in line and ".amber" in line:
+        return "new"
+    elif "errors found during execution." in line:
+        return "end"
+    elif "Failure:" in line and ".amber" in line:
+        return "error"
+    elif state == "error":
+        return "error"
+    else:
+        return "other"
+
+
+def classify_error(error):
+    if "Invalid back or cross-edge in the CFG" in error:
+        return "Invalid back or cross-edge in the CFG"
+    elif "Loop breaks can only break out of the inner most nested loop level" in error:
+        return "Loop breaks can only break out of the inner most nested loop level"
+    elif "nir_lower_phis_to_regs_block: Assertion `src->src.is_ssa' failed." in error:
+        return "nir_lower_phis_to_regs_block: Assertion `src->src.is_ssa' failed."
+    else:
+        return error
+
+
+def get_errors_from_logs(logfile: Path) -> DefaultDict[str, List[Tuple[str, str]]]:
+    with open(logfile, 'r') as f:
+        lines = f.readlines()
+    
+    errors = defaultdict(list)
+    state = None
+    idx = 0
+    while idx < len(lines):
+        state = get_state(lines[idx], state)
+        if state == "error":
+            current_error = ""        
+            while idx < len(lines) and get_state(lines[idx], state) == "error":
+                current_error += lines[idx]
+                idx += 1
+            error_class = classify_error(current_error)
+            start = current_error.find("Failure:") + 9
+            end = current_error.find(".amber", start) + 6
+            file = current_error[start:end] 
+            errors[error_class].append((file, current_error))
+        else:
+            idx += 1
+    return errors
+
+def print_errors(errors: DefaultDict[str, List[Tuple[str, str]]]):
+    for error_class, errors_in_class in errors.items():
+        print(f"TYPE: {error_class}")
+        for file, error in errors_in_class:
+            print(f"\tFILE: {file}")
+            print(f"\tERROR: {error}")
+            
 
 def parse_args():
     t = "Useful amber related functions"
