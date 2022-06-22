@@ -533,8 +533,8 @@ def compute_path_swaps(paths: List[Path], num_barrier_visits: int, prng: Random,
     swap_idxs = [[workgroup * threads_per_workgroup + i for i in range(threads_per_workgroup)] for workgroup in range(num_workgroups)]
     path_swaps = [[e for workgroup in swap_idxs for e in workgroup]]
     for _ in range(num_barrier_visits):
-        for workgroup_idx in range(num_workgroups):
-            prng.shuffle(swap_idxs[workgroup_idx])
+        # for workgroup_idx in range(num_workgroups):
+        #     prng.shuffle(swap_idxs[workgroup_idx])
         path_swaps.append([e for workgroup in swap_idxs for e in workgroup])
     return path_swaps
 
@@ -851,6 +851,7 @@ class CFG:
         barrier_line = CFG.get_barrier_line()
         instructions = "\n"
         if include_path_swap:
+            instructions += barrier_line
             instructions += "               ; Path swapping code\n"
             for id in conditional_block_ids:
                 instructions += "               %" + block_id + "_directions_" + id + "_index_temp = OpLoad %" + str(self.UINT_TYPE_ID) + " %directions_" + id + "_index\n"
@@ -910,6 +911,26 @@ class CFG:
             input_phi += '\n'
         return output_phi + input_phi   
 
+
+    def get_return_barrier(self, block_id: str, conditional_block_ids: Set[str], include_path_swaps: bool) -> str:
+        if not include_path_swaps:
+            return ""
+
+        barrier_line = CFG.get_barrier_line()
+        instructions = "\n"
+        instructions += barrier_line
+        instructions += "               ; Store indices before returning\n"
+        for id in conditional_block_ids:
+            instructions += "               %" + block_id + "_return_directions_" + id + "_index_temp = OpLoad %" + str(self.UINT_TYPE_ID) + " %directions_" + id + "_index\n"
+        instructions += "               %" + block_id + "_return_output_index_temp = OpLoad %" + str(self.UINT_TYPE_ID) + " %output_index\n"    
+        instructions += "               %" + block_id + "_return_current_thread_id = OpLoad %" + str(self.UINT_TYPE_ID) + " %current_thread_id\n"    
+        for id in conditional_block_ids:
+            instructions += f"               %directions_{id}_pre_swap_{block_id}_return_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_{id}_index_variable %constant_0 %{block_id}_return_current_thread_id\n"
+        instructions += f"               %output_pre_swap_{block_id}_return_idx_ptr = OpAccessChain %storage_buffer_int_ptr %output_index_variable %constant_0 %{block_id}_return_current_thread_id\n"
+        for id in conditional_block_ids:
+            instructions += "               OpStore %directions_" + id + "_pre_swap_" + block_id + "_return_idx_ptr %" + block_id + "_return_directions_" + id + "_index_temp\n"
+        instructions += "               OpStore %output_pre_swap_" + block_id + "_return_idx_ptr %" + block_id + "_return_output_index_temp\n"      
+        return instructions
 
     def block_to_string_fleshing(self, 
                                  label: str, 
@@ -985,7 +1006,7 @@ class CFG:
                 result += self.create_op_phi_instructions(label, predecessors, num_successors, path_ids, indent1)        
                 num_op_phi += 2
 
-            if label in paths[0].barrier_blocks and label not in self.exit_blocks:
+            if label in paths[0].barrier_blocks:
                 result += self.add_barrier(block_id, conditional_block_ids, include_path_swaps)
 
             if not include_op_phi or label == self.entry_block:
@@ -1036,10 +1057,7 @@ class CFG:
         if label not in self.jump_relation:
             assert num_successors == 0
             if block_id in path_ids and include_path_swaps:
-                return_barrier_code = self.add_barrier(block_id, conditional_block_ids, include_path_swaps)
-                first_barrier_idx = return_barrier_code.find("OpControlBarrier")
-                first_barrier_line_end = return_barrier_code.find("\n", first_barrier_idx)
-                result += return_barrier_code[:first_barrier_line_end+1]
+                result += self.get_return_barrier(block_id, conditional_block_ids, include_path_swaps)
             result += "               OpReturn" # Exit nodes are defined as having no successors. Can we use an alternative to OpReturn in some cases to make fleshing more interesting?
         elif label not in self.switch_blocks:
             assert num_successors == 1 or num_successors == 2
