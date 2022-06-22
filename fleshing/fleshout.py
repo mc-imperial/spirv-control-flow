@@ -530,36 +530,41 @@ def transform_paths_with_swaps(paths: List[Path], path_swaps: List[List[int]]) -
 
 
 def compute_path_swaps(paths: List[Path], num_barrier_visits: int, prng: Random, num_workgroups: int, threads_per_workgroup: int):
-    swap_idxs = [[workgroup * threads_per_workgroup + i for i in range(threads_per_workgroup)] for workgroup in range(num_workgroups)]
-    path_swaps = [[e for workgroup in swap_idxs for e in workgroup]]
-    for _ in range(num_barrier_visits):
-        for workgroup_idx in range(num_workgroups):
-            prng.shuffle(swap_idxs[workgroup_idx])
-        path_swaps.append([e for workgroup in swap_idxs for e in workgroup])
+    # swap_idxs = [[workgroup * threads_per_workgroup + i for i in range(threads_per_workgroup)] for workgroup in range(num_workgroups)]
+    # path_swaps = [[e for workgroup in swap_idxs for e in workgroup]]
+    # for _ in range(num_barrier_visits):
+    #     for workgroup_idx in range(num_workgroups):
+    #         prng.shuffle(swap_idxs[workgroup_idx])
+    #     path_swaps.append([e for workgroup in swap_idxs for e in workgroup])
+    
+    # FIX:
+    path_swaps = [[workgroup * threads_per_workgroup + i for i in range(threads_per_workgroup)] for workgroup in range(num_workgroups)]
+    path_swaps = [e for workgroup in path_swaps for e in workgroup]
+    path_swaps = [[tid for tid in path_swaps] for _ in range(num_barrier_visits)]
     return path_swaps
 
 
 def expected_output_after_swaps(paths: List[Path], num_barrier_visits: int, prng: Random, num_workgroups: int, threads_per_workgroup: int) -> Tuple[List[List[str]], List[List[int]]]:
     assert num_barrier_visits > 0 and len(paths) > 0
-    barrier_indices = [path.compute_barrier_indices() for path in paths]
-    path_swaps: List[List[int]] = compute_path_swaps(paths, num_barrier_visits, prng, num_workgroups, threads_per_workgroup)
-    # new_paths: List[List[str]] = [path.id_path[:barrier_indices[idx][0]] for idx, path in enumerate(paths)]
+    # barrier_indices = [path.compute_barrier_indices() for path in paths]
+    # path_swaps: List[List[int]] = compute_path_swaps(paths, num_barrier_visits, prng, num_workgroups, threads_per_workgroup)
+    # # new_paths: List[List[str]] = [path.id_path[:barrier_indices[idx][0]] for idx, path in enumerate(paths)]
 
-    new_paths: List[List[str]] = [[] for _ in paths]
-    state = [[i for i in range(len(paths))]]
-    for swap_round in range(num_barrier_visits+1):
-        if swap_round > 0:
-            state.append([])
-        for old_tid in range(len(path_swaps[swap_round])):
-            swap_tid = path_swaps[swap_round][old_tid]
-            prev_round = swap_round - 1 if swap_round > 0 else 0
-            new_path_id = state[prev_round][swap_tid]
-            new_path = paths[new_path_id]
-            curr_barrier_idx = barrier_indices[new_path_id][swap_round]
-            next_barrier_idx = barrier_indices[new_path_id][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
-            new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
-            if swap_round > 0:
-                state[swap_round].append(new_path_id)
+    # new_paths: List[List[str]] = [[] for _ in paths]
+    # state = [[i for i in range(len(paths))]]
+    # for swap_round in range(num_barrier_visits+1):
+    #     if swap_round > 0:
+    #         state.append([])
+    #     for old_tid in range(len(path_swaps[swap_round])):
+    #         swap_tid = path_swaps[swap_round][old_tid]
+    #         prev_round = swap_round - 1 if swap_round > 0 else 0
+    #         new_path_id = state[prev_round][swap_tid]
+    #         new_path = paths[new_path_id]
+    #         curr_barrier_idx = barrier_indices[new_path_id][swap_round]
+    #         next_barrier_idx = barrier_indices[new_path_id][swap_round+1] if swap_round < len(path_swaps) - 1 else len(new_path.id_path)
+    #         new_paths[old_tid] += new_path.id_path[curr_barrier_idx:next_barrier_idx]
+    #         if swap_round > 0:
+    #             state[swap_round].append(new_path_id)
 
     # new_paths: List[List[str]] = [[] for _ in paths]
     # for swap_round in range(num_barrier_visits+1):
@@ -596,8 +601,9 @@ def expected_output_after_swaps(paths: List[Path], num_barrier_visits: int, prng
     #     curr_barrier_idx = barrier_indices[new_tid][2]
     #     new_paths[old_tid] += paths[new_tid].id_path[curr_barrier_idx:]
 
+    path_swaps: List[List[int]] = compute_path_swaps(paths, num_barrier_visits, prng, num_workgroups, threads_per_workgroup)
     flattened_path_swaps = [[arr[i] for arr in path_swaps[1:]] for i in range(len(path_swaps[0]))]
-    return new_paths, flattened_path_swaps
+    return None, flattened_path_swaps
 
 
 class CFG:
