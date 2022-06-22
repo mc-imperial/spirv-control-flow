@@ -24,7 +24,7 @@ from typing import Deque, DefaultDict, Dict, List, Set, Tuple
 
 
 MAX_PATH_LENGTH = 900 # Python has a limit on recursion depth of around 1000
-SEQ_CONSISTENCY = 64
+MEMORY_CONSISTENCY = 64
 
 class NoTerminalNodesInCFGError(Exception):
 
@@ -533,8 +533,8 @@ def compute_path_swaps(paths: List[Path], num_barrier_visits: int, prng: Random,
     swap_idxs = [[workgroup * threads_per_workgroup + i for i in range(threads_per_workgroup)] for workgroup in range(num_workgroups)]
     path_swaps = [[e for workgroup in swap_idxs for e in workgroup]]
     for _ in range(num_barrier_visits):
-        # for workgroup_idx in range(num_workgroups):
-        #     prng.shuffle(swap_idxs[workgroup_idx])
+        for workgroup_idx in range(num_workgroups):
+            prng.shuffle(swap_idxs[workgroup_idx])
         path_swaps.append([e for workgroup in swap_idxs for e in workgroup])
     return path_swaps
 
@@ -844,7 +844,7 @@ class CFG:
 
     @staticmethod
     def get_barrier_line() -> str:
-        return "               OpControlBarrier %constant_2 %constant_2 %constant_64 ; Barrier with Workgroup scope\n"
+        return f"               OpControlBarrier %constant_2 %constant_2 %constant_{str(MEMORY_CONSISTENCY)} ; Barrier with Workgroup scope\n"
 
 
     def add_barrier(self, block_id: str, conditional_block_ids: Set[str], include_path_swap: bool) -> str:
@@ -931,6 +931,7 @@ class CFG:
             instructions += "               OpStore %directions_" + id + "_pre_swap_" + block_id + "_return_idx_ptr %" + block_id + "_return_directions_" + id + "_index_temp\n"
         instructions += "               OpStore %output_pre_swap_" + block_id + "_return_idx_ptr %" + block_id + "_return_output_index_temp\n"      
         return instructions
+
 
     def block_to_string_fleshing(self, 
                                  label: str, 
@@ -1125,7 +1126,7 @@ class CFG:
         #                1: for incrementing counter variables
         #                2: for incrementing the last output index
         constants: Set[str] = {str(0), str(1), str(2)}.union(set(all_blocks_id))
-        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups, num_local_threads, total_num_threads, SEQ_CONSISTENCY])
+        constants.update(str(x) for x in [x_threads, y_threads, z_threads, x_workgroups, y_workgroups, x_workgroups * y_workgroups, num_local_threads, total_num_threads, MEMORY_CONSISTENCY])
 
         # find the sizes of the input and output arrays
         array_sizes: DefaultDict[str, int] = defaultdict(int)
