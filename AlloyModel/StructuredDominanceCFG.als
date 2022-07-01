@@ -477,7 +477,7 @@ fun exitEdge :  StructurallyReachableBlock  ->  StructurallyReachableBlock  {
 
 
 /**
-  *   StructurallyReachableBlock  is structurally-reachable from Entry
+  *   'StructurallyReachableBlock' is structurally-reachable from Entry
   */
 fact 
 {
@@ -815,8 +815,11 @@ pred OrderOfOpSwitchTargetOperands
   *   function and must not be the target of any branch."
   *   (The Khronos Group, 2021, p.35)
   *   https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.pdf
+  *
+  *   This also implies that the entry point is not a LoopHeader because 
+  *   otherwise it would be targeted by the back-edge
   */
-pred EntryPointIsNotLoopHeader
+pred EntryPointIsNotTargeted
 {
 	EntryPoint not in ran[jumpSet]
 }
@@ -964,7 +967,7 @@ pred Valid {
 	AtMostOneBranchToAnotherCaseConstruct 
 	CaseConstructBranchedToByAtMostOneOther 
 	OrderOfOpSwitchTargetOperands
-	EntryPointIsNotLoopHeader 
+	EntryPointIsNotTargeted 
 	OpLoopMergeSecondToLast 
 	OpSelectionMergeSecondToLast 
 	OutDegree 
