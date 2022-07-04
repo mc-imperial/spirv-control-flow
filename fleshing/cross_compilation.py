@@ -170,14 +170,16 @@ def run_cross_compilation(amber_folder: Path, spirv_as: Path, cross_compiler: Pa
         with open(asm_file, 'w') as f:
             f.write(spirv_asm)
         binary_file = compile_spirv(asm_file, spirv_as)
+        os.remove(asm_file)
         target_lang_file = cross_compile(binary_file, cross_compiler, cross_compiler_name, target_lang)
+        os.remove(binary_file)
         if target_lang_file is None:
             files_with_cross_compilation_errors.append(binary_file)
             continue
         success = validate_target_lang_output(target_lang_compiler, target_lang, target_lang_file)
         if not success:
             files_with_target_compilation_errors.append(target_lang_file)
-    
+        os.remove(target_lang_file)
     res_str = f"Finished cross compilation. Found {len(files_with_cross_compilation_errors)} cross compilation errors. Found {len(files_with_target_compilation_errors)} target language compilation errors."
     if len(files_with_cross_compilation_errors) > 0:
         res_str += "\nCross compilation errors:"
