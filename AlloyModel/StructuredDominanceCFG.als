@@ -711,8 +711,8 @@ pred NobranchBetweenCaseConstructs
   */
 pred BranchesBetweenConstructs 
 {
-	all  lh: LoopHeader & StructurallyReachableBlock     		   									    | let lc  = loopConstruct[lh], ctc = continueConstruct[lh.continue]	| (some lc  => no ( StructurallyReachableBlock  - lc)  <: branchSet :> (lc - lh)) and  (some ctc => no ( StructurallyReachableBlock  - ctc) <: branchSet :> (ctc - lh.continue ))   
-	all  sh: SelectionHeader & StructurallyReachableBlock 										       | let sc  = selectionConstruct[sh]  | some sc  => no ( StructurallyReachableBlock  - sc)  <: branchSet :> (sc - sh)
+	all  lh: LoopHeader & StructurallyReachableBlock     		   									      | let lc  = loopConstruct[lh], ctc = continueConstruct[lh.continue]	| (some lc  => no ( StructurallyReachableBlock  - lc)  <: branchSet :> (lc - lh)) and  (some ctc => no ( StructurallyReachableBlock  - ctc) <: branchSet :> (ctc - lh.continue ))   
+	all  sh: SelectionHeader & StructurallyReachableBlock 										         | let sc  = selectionConstruct[sh]  | some sc  => no ( StructurallyReachableBlock  - sc)  <: branchSet :> (sc - sh)
 	all  sw_target : ((SwitchBlock.branchSet - SwitchBlock.merge) & StructurallyReachableBlock)  | let csc = caseConstruct[sw_target]| some csc => no ( StructurallyReachableBlock  - csc) <: branchSet :> (csc - sw_target)
 }
 
@@ -934,8 +934,8 @@ pred StructurallyAcyclic
   *  Let B be a continue target; suppose that B is not a loop header and let A->B a control flow edge.
   *  Then A is part of the loop associated with B. The rule also excludes consideration of backedges.
   *
-  *   spirv-val does (unjustifiably) accept edges like the ones in the following GitHub issue:
-  *   https://github.com/afd/spirv-control-flow/issues/28
+  *  [The old version of spirv-val accepts edges like the ones in the following GitHub issue:
+  *   https://github.com/afd/spirv-control-flow/issues/28]
   */
 pred BranchToContinue 
 {
@@ -969,7 +969,7 @@ pred Valid {
 	OrderOfOpSwitchTargetOperands
 	EntryBlockIsNotTargeted 
 	OpLoopMergeSecondToLast 
-	OpSelectionMergeSecondToLast 
+	OpSelectionMergeSecondToLast
 	OutDegree 
 	MultipleOutEdges 
    ExitingTheConstruct 
@@ -998,7 +998,7 @@ pred loop_example {
     continue = (b2 -> b4)
   }
 }
-test1: run { loop_example && Valid  } for 4 Block
+--test1: run { loop_example && Valid  } for 4 Block
 
 
 pred invalid_example {
@@ -1021,4 +1021,28 @@ pred invalid_example {
     continue = (b2 -> b3)
   }
 }
-test2: run { invalid_example && Valid } for 5 Block
+--test2: run { invalid_example && Valid } for 5 Block
+
+pred Vibrant 
+{
+	all disj A,B,C: Block | not (  #(A. (branchSet + merge + continue) - A) = 1 and B in A.(branchSet + merge + continue)  and 
+					#(B.~(branchSet + merge + continue) - B) = 1 and A in B.~(branchSet + merge + continue) and
+					#(B. (branchSet + merge + continue) - B) = 1 and C in B. (branchSet + merge + continue) and 
+					#(C.~(branchSet + merge + continue) - C) = 1 and B in C.~(branchSet + merge + continue) 
+										  )
+	all sw: SwitchBlock | #(sw<:branch) <= 3
+
+	all  a,b: Block | #(a<:branch:>b) < 2
+}
+
+pred MoreInteresting
+{
+	/* no 2 outmost constructs - we impose here a more nested setup
+	 * we also impose existence of at least one loop as Alloy is lazily avoiding them
+	 */
+	all disj h1,h2: HeaderBlock | some (h1+h2).~outerInner
+	#LoopHeader > 0
+	all l: LoopHeader | l not in l.continue.branchSet
+}
+
+run { Valid && Vibrant && MoreInteresting && #LoopHeader=1 && #(SelectionHeader-SwitchBlock)=1 && #SwitchBlock=1 } for exactly 8 Block
