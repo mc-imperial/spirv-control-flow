@@ -279,14 +279,14 @@ int main(int argc, const char **argv) {
   std::cout << "  // #exit blocks: " << num_exit_blocks << std::endl;
   std::cout << "  // #jumps:       " << num_jump_edges << std::endl;
   std::cout << "  some disj " + blocks + " : Block {" << std::endl;
-  std::cout << "    EntryPoint = " << entry_point << std::endl;
+  std::cout << "    EntryBlock = " << entry_point << std::endl;
   std::cout << "    HeaderBlock = " << (headers.empty() ? "none" : headers) << std::endl;
   std::cout << "    LoopHeader = " << (loop_headers.empty() ? "none" : loop_headers) << std::endl;
   std::cout << "    SwitchBlock = " << (switch_headers.empty() ? "none" : switch_headers) << std::endl;
   if (jump_edges.empty()) {
-    std::cout << "    no jump" << std::endl;
+    std::cout << "    no branch" << std::endl;
   } else {
-    std::cout << "    jump = " << jump_edges;
+    std::cout << "    branch = " << jump_edges;
   }
   if (merge_edges.empty()) {
     std::cout << "    no merge" << std::endl;
