@@ -60,7 +60,7 @@ def get_sig_from_instance(instance, label):
 
 def get_jump_relation(instance) -> Dict[str, List[str]]:
     node_to_int_to_node: Dict[str, Dict[int, str]] = {}
-    for child in get_field_from_instance(instance, 'jump'):
+    for child in get_field_from_instance(instance, 'branch'):
         if child.tag != 'tuple':
             continue
         assert len(child) == 3
@@ -102,7 +102,7 @@ def get_continue_relation(instance) -> Dict[str, str]:
 
 
 def get_entry_block(instance) -> str:
-    for child in get_sig_from_instance(instance, 'EntryPoint'):
+    for child in get_sig_from_instance(instance, 'EntryBlock'):
         if child.tag == 'atom':
             return child.attrib['label']
     assert False
