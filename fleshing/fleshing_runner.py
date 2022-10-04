@@ -47,7 +47,7 @@ def profile(func):
 def get_test_folders(xml_folder):
     return [test_folder for test_folder in next(os.walk(xml_folder))[1]]
 
-@profile
+# @profile
 def run_fleshing(xml_folder, seeds, x_threads=1, y_threads=1, z_threads=1, x_workgroups=1, y_workgroups=1, z_workgroups=1, include_barriers=False, include_op_phi=False):
     configure_logging()
     start_time = time.perf_counter()
