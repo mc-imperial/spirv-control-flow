@@ -19,14 +19,14 @@ FROM ubuntu:20.04
 ENV \
   LC_ALL=C.UTF-8 LANG=C.UTF-8
 
+SHELL ["/bin/bash", "-c"]
+
 RUN \
   apt-get -qq update && \
   apt-get -y -qq install wget python3 python3-pip git unzip curl moreutils ninja-build libssl-dev
 
 
-RUN \
-    mkdir -p /data/git /data/fuzzing && \
-    touch /data/ROOT
+RUN mkdir -p /data/git /data/fuzzing
 
 # Install version of cmake > 3.13
 RUN \
@@ -69,7 +69,7 @@ ENV PATH /data/git/SPIRV-Tools/pre-built/tools:${PATH}
 RUN \
   mkdir /data/glslang && \
   cd /data/glslang && \
-  curl -sSLo glslang.zip https://github.com/google/gfbuild-glslang/releases/download/github%2Fgoogle%2Fgfbuild-glslang%2F159b05708055fdb7cb2f01005d7c35545be6852f/gfbuild-glslang-159b05708055fdb7cb2f01005d7c35545be6852f-Linux_x64_Debug.zip && \
+  curl -sSLo glslang.zip https://github.com/KhronosGroup/glslang/releases/download/master-tot/glslang-master-linux-Debug.zip && \
   unzip glslang.zip
 
 ENV PATH /data/glslang/bin:${PATH}
@@ -79,6 +79,10 @@ RUN \
     cd /data/git && \
     git clone https://github.com/KhronosGroup/VK-GL-CTS.git
 
+RUN \
+    cd /data/git/VK-GL-CTS && \
+    git checkout 8252a3d3cdd3cc4333c714f225a902e19b2d75d9
+
 # Alloystar deps
 ENV DEBIAN_FRONTEND="noninteractive" TZ="Europe/London"
 RUN \
@@ -86,10 +90,13 @@ RUN \
     apt-get -y -qq install openjdk-8-jdk openjdk-8-jre ant
 
 # Install Alloystar
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
 RUN \
     cd /data/git && \
     git clone https://github.com/johnwickerson/alloystar.git && \
     cd alloystar && \
+    git fetch --prune && \
+    git checkout origin/extra_features && \
     ant all
 
 # Install VulkanSDK Deps
@@ -107,8 +114,6 @@ RUN \
     cd /data/ && \
     tar -xzf vulkansdk-linux-x86_64-1.3.224.1.tar.gz -C /data/vulkansdk
 
-SHELL ["/bin/bash", "-c"]
-
 # RUN source /data/vulkansdk/1.3.224.1/setup-env.sh
 ENV VULKAN_SDK /data/vulkansdk/1.3.224.1/x86_64
 ENV PATH ${VULKAN_SDK}/bin:${PATH}
@@ -116,11 +121,12 @@ ENV LD_LIBRARY_PATH ${VULKAN_SDK}/lib
 ENV VK_LAYER_PATH	${VULKAN_SDK}/etc/vulkan/explicit_layer.d
 
 # Install SwiftShader
+RUN apt-get -y -qq install libxcb1 libxcb1-dev libxcb-shm0-dev
 RUN \
   cd /data/git && \
   git clone https://github.com/google/swiftshader.git && \
-  cd swiftshader
-  # git submodule update --init --recursive
+  cd swiftshader && \
+  git checkout d15c42482560fba311e3cac90203438ad972df55
 
 RUN \
   cd /data/git/swiftshader/build && \
@@ -145,5 +151,11 @@ RUN \
   ninja
 
 ENV PATH /data/git/amber/out/Debug/amber:${PATH}
-
 RUN /data/git/amber/out/Debug/amber -V
+
+# Tidy up
+RUN mkdir /data/git/spirv-control-flow/VulkanCTS
+RUN mkdir -p /data/git/spirv-control-flow/fleshing/test_sets/vulkan_cts/xml
+RUN rm /data/vulkansdk-linux-x86_64-1.3.224.1.tar.gz
+RUN rm /data/git/cmake-3.24.2.tar.gz
+
