@@ -701,8 +701,20 @@ You can pass the same commands to the `fleshing_runner.py` as passed to `fleshou
 Running the command above should only take a few seconds as the fleshing process is fast. You should see `Produced 391 amber files from 392 xml files` towards the bottom of the output. One XML file is skipped because the CFG either has no exit nodes or none are reachable from the entry point of the SPIR-V program. All test cases are written in the same directory as the corresponding XML file.
 
 ### Executing fleshed test cases
-To execute the fleshed test cases, we provide an
-amber runner. To run it:
+To execute a single fleshed test case, you can invoke amber directly as:
+```
+/data/git/amber/out/Debug/amber <path to amber file>
+```
+For the Vulkan CTS example, you can run:
+```
+/data/git/amber/out/Debug/amber fleshing/test_sets/vulkan_cts/xml/s005/test_0_1.amber
+```
+which will output:
+```
+Summary: 1 pass, 0 fail
+```
+To indicate that the test case executed successfully. 
+We provide a program `fleshing/amber_runner.py` (amber runner) that will run all amber files within a directory, as well as keeping track of the results in a convenient manner. To run it:
 ```
 python3 fleshing/amber_runner.py </path/to/directory/containing/amber/files> <path/to/amber> 
 ```
@@ -710,8 +722,17 @@ In this case:
 ```
 python3 fleshing/amber_runner.py fleshing/test_sets/vulkan_cts/xml/ /data/git/amber/out/Debug/amber 
 ```
-As we used the seed 1 during the fleshing process, the results are deterministic and you should see that there are no errors found.
-**TODO: Provide an example of the output that should be seen.**
+
+As the above command executes, it will print the current amber file that is being executed along with a count of how many amber files have been executed so far, for example:
+```
+Execution count 134. Executing fleshing/test_sets/vulkan_cts/xml/s155/test_0_1.amber
+```
+If there are any errors, they will be printed to the console. A log file is also generated, which can be accessed in the ./logs directory, and will be called amber_runner_\<timestamp\>.log.
+
+As we used the seed 1 during the fleshing process, the results are deterministic and you should see that there are no errors found. This will be indicated by the final line in the output:
+```
+0 errors found during execution.
+```
 
 ## Finding compiler bugs using fleshing (Claim 9)
 We will demonstrate three bugs that we found in the Google SwiftShader driver (the full list of bugs can be [found here](https://docs.google.com/spreadsheets/d/1Ovgi4Ylo5lGXc4sCVZoem-YU0qJPS5NXPeEKKj1nFn0/edit#gid=0)). We use SwiftShader because it requires no GPU hardware (it runs on the CPU) and it is relatively fast to execute test cases. Run all commands from the `/data/git/spirv-control-flow` directory. 
