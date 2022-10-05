@@ -80,7 +80,9 @@ Click `Execute` in top toolbar and select `Run run$1 for exactly 8 Block`. Alloy
 Export the visualised solution to an XML by going to `File` > `Export To` > `XML...` from the Vizualiser's Menu Bar.
 
 ### Download and check that the Docker image works
-We provide a docker image that has all the necessary software pre-installed. For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
+We provide a docker image that has all the necessary software pre-installed. This includes the tools produced by us for the paper and this artifact. If you would like to verify that this code builds from scratch, instructions for doing this can be found in the README of the repository provided in the docker image (/data/git/spirv-control-flow/README.md). Most of the code is in Python, so you will only need to build the spirv-to-alloy tool. 
+
+For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
 
 0. Download the docker image (docker-image.tar.gz).
 
