@@ -136,6 +136,7 @@ Solving took 3.63s.
 11:44:26: Solution saved to fleshing/test_sets/alloy/xml/test_0.xml.
 ```
 
+To exit the container, type `exit`.
 ## The updated SPIR-V specification (Claim 1)
 
 [TODO] Ally to write.
@@ -313,8 +314,10 @@ pred Valid {
 ![](https://i.imgur.com/iaARtNK.png)
 
 ## Performance of Alloy in relation to CFG size (Claim 4)
-
-[TODO] Jack, at this point can we get them to go into the Docker container?
+From now on, you will need to be executing commands inside the docker container that we have provided. To get a shell in the container, run:
+```
+sudo docker run -it --entrypoint /bin/bash popl-artifact-final
+```
 
 [TODO] Take text from below about generating examples on command line and in bulk, and then extend it with performance stuff.
 
