@@ -75,7 +75,7 @@ There will be one entry in the `Execute` menu for each `run`-command of the load
 
 You can export the solution visualised to a graphviz diagram or to XML by going to `File` > `Export To` > `Dot...` or `XML...` from the Vizualiser's Menu Bar.
 
-### Check that our Docker image works
+### Download and check that the Docker image works
 
 [TODO] Jack, please provide minimal instructions for launching the docker container and running 1-2 simple, relevant commands inside it. Again, the point is to quickly establish whether there's something horribly wrong.
 
@@ -84,6 +84,66 @@ Python
 Amber
 
 Alloy*
+
+We provide a docker image that has all the necessary software pre-installed. For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
+
+0. Download the docker image from [here](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/ESwzq64_UitNury5bFPwkZYBz9ZTTN5UX5-UEMdMu2OpZg). **TODO: Change this from Onedrive to wherever artifact is hosted.**
+
+1. Load the docker image
+``` 
+sudo docker load -i /path/to/popl-artifact-latest.tar.gz 
+```
+
+2. Get a shell in the docker image:
+``` 
+sudo docker run -it --entrypoint /bin/bash popl-artifact-final
+```
+
+3. Test that Amber and SwiftShader work:
+```
+/data/git/amber/out/Debug/amber -V
+```
+You should see the following output:
+```
+Amber        : e754c90
+SPIRV-Tools  : a73e7243
+SPIRV-Headers: b42ba6d
+GLSLang      : 81cc10a4
+Shaderc      : e72186b
+
+Physical device properties:
+  apiVersion: 1.2.0
+  driverVersion: 20971520
+  vendorID: 6880
+  deviceID: 49374
+  deviceType: cpu
+  deviceName: SwiftShader Device (LLVM 10.0.0)
+  driverName: SwiftShader driver
+  driverInfo: 
+  minSubgroupSize: 4
+  maxSubgroupSize: 4
+  maxComputeWorkgroupSubgroups: 64
+  requiredSubgroupSizeStages: vert, frag, comp
+End of physical device properties.
+
+Summary: 0 pass, 0 fail
+```
+
+4. Check Python works:` python3 -V` should output ` Python 3.8.10`
+
+5. Check that Alloy* works:
+```
+cd /data/git/spirv-control-flow
+mkdir -p fleshing/test_sets/alloy/xml
+java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=fleshing/test_sets/alloy/xml -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
+```
+You should see output similar to:
+```
+Running Alloy, using MiniSat on command 0.
+11:44:23: Translation took 2.31s (224521 vars, 432 primary vars, 737481 clauses).
+Solving took 3.63s.
+11:44:26: Solution saved to fleshing/test_sets/alloy/xml/test_0.xml.
+```
 
 ## The updated SPIR-V specification (Claim 1)
 
