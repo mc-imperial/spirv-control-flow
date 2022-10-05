@@ -1,8 +1,7 @@
 # Artifact for "Taking Back Control in an Intermediate Representation for GPU Computing"
 
 ## Recommended platform
-
-[TODO] We have prepared and tested this artifact on a ... We recommend that you run it on [...].
+We have prepared and tested this artifact on Ubuntu 20.04 and Ubuntu 20.10. We recommend that you run the artifact using the same versions. Any other linux distribution should work too, although you may have to change some installation commands to suit your distribution. 
 
 ## Files included in the artifact
 
