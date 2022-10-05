@@ -72,14 +72,12 @@ If on Mac OS X, download and open the `alloy.dmg` file available as part of the 
 
 #### Check that the analyser works
 
-[TODO] Vasilis: can you rewrite this as a series of minimal instructions that they should follow to confirm things seem to be working? E.g., tell them to open the `StructuredDominanceCFG.als` file provided with the artifact, to do something specific with it, and what to expect. The following is along the right lines but it doesn't make it fully clear what they should expect.
+Load the Alloy model provided with the artifact by selecting `File` > `Open` in top toolbar, and in the dialog that opens, browse to and select the `StructuredDominanceCFG.als`-file.
+Click `Execute` in top toolbar and select `Run run$1 for exactly 8 Block`. Alloy Analyser will look for a matching example of the spec and will respond with “Instance found”. Click the `Show` button from the toolbar, and a new window will open up (the Alloy Visualizer) with a solution diagram similar to this:
 
-To load a model with the Alloy Analyzer, select `File` > `Open` in top toolbar, and in the dialog that opens, browse to and select the `als`-file you want to open.
-There will be one entry in the `Execute` menu for each `run`-command of the loaded model shown in the text editor section. If no `run`-command exists in the model, the `Run Default for 4 but 4 int, 4 seq expect 1` will be shown in the `Execute` menu (in this case the Analyzer will look for instances of the model with the size of the domains bounded to four). By selecting any `run`-command from the `Execute` menu, the Alloy Analyser will look for a matching example of the spec and will respond with either “No instance found” or “Instance found”. In the latter case, click the `Show` button from the toolbar, and a new window will open up (the Alloy Visualizer) with a diagram similar to this:
+![](https://i.imgur.com/vCYUBWc.png)
 
-![](https://i.imgur.com/CbSyq0r.png)
-
-To export the visualised solution to a graphviz diagram or to XML, go to `File` > `Export To` > `Dot...` or `XML...` from the Vizualiser's Menu Bar.
+Export the visualised solution to an XML by going to `File` > `Export To` > `XML...` from the Vizualiser's Menu Bar.
 
 ### Download and check that the Docker image works
 We provide a docker image that has all the necessary software pre-installed. For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
