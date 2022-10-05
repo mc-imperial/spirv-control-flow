@@ -143,9 +143,14 @@ Solving took 3.63s.
 ```
 
 To exit the container, type `exit`.
+
 ## The updated SPIR-V specification (Claim 1)
 
-[TODO] Ally to write.
+In Sections 2 and 3 of the paper we quote from Version 1.6 revision 1 of the SPIR-V specification when discussing problematic definitions and rules. These quotations can be cross-checked against a copy of that specification version, **TODO Zenodo link**, provided with the artifact.
+
+In Section 4 of the paper we claim that our revised definitions and rules have been incorporated into a more recent revision of the SPIR-V specification. This can be checked against Version 1.6 revision 2 of the specification, **TODO Zenodo link**, provided with the artifact.
+
+[TODO] Ally to be a bit more concrete.
 
 ## Our Alloy model and its relationship to the specification (Claim 2)
 
