@@ -88,7 +88,7 @@ We provide a docker image that has all the necessary software pre-installed. For
 
 1. Load the docker image
 ``` 
-sudo docker load -i /path/to/popl-artifact-latest.tar.gz 
+sudo docker load -i /path/to/docker-image.tar.gz 
 ```
 
 2. Get a shell in the docker image:
