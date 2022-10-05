@@ -397,17 +397,71 @@ The 31 CFGs skipped have more than 40 blocks and would take a relatively long ti
 Once the process is complete, there should be directories containing xml files in the `./fleshing/test_sets/vulkan_cts/xml directory`.
 ## Control flow graph fleshing (Claim 8)
 
-[TODO] Jack, can you work out which of the bits below to slot in here?
+*Fleshing* is the process of turning a CFG skeleton into an exectuable program that will follow a predetermined path through that CFG. The fleshing/fleshout.py program is responsible for fleshing an individual CFG. It supports a number of options including:
+1. Fleshing a single path executed by a single thread
+2. Fleshing with op-phi instructions enabled
+3. Fleshing multiple threads that follow independent paths
+
+For the purpose of this explanation, ensure you are in the `/data/git/spirv-control/flow` directory. You should already have completed the Claim 7 section which generated CFG skeletons from the Vulkan CTS. We'll use the CFG in `./fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml`.
+
+### Fleshing a single path
+To produce a basic fleshed test case that will have a single thread following a predetermined path, run:
+```
+python3 fleshing/fleshout.py ./fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml --seed 1
+```
+
+This will output both the CFG skeleton as SPIR-V code, followed by the fully fleshed test case in the form of an amber program. Amber is essentially a convenient scripting language for running test cases.
+**TODO: Explain the role of amber more clearly and why we generate amber files instead of plain spir-v.**
+
+**TODO: Explain the generated SPIR-V for each fleshing method in more detail.**
+
+### Op-phi instructions
+To include op-phi instructions in the fleshed test case, append the --op-phi option. For example:
+```
+python3 fleshing/fleshout.py fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml --seed 1 --op-phi
+```
+The output should be similar to the regular fleshing process.
+**TODO: Explain the generated SPIR-V for each fleshing method in more detail.**
+
+### Independent Paths
+It is possible to have the test case use multiple threads, where each thread will follow an independent path through the control flow graph. Although it is supported, for simplicity we do not use the independent paths option with op-phi instructions. 
+
+In SPIR-V, threads can exist in the x, y and z dimensions of a workgroup, and there can be many workgroups. Similarly, workgroups are organised in the x, y and z dimensions. We provide options to limit the maximum number of threads and workgroups in each dimension as shown below.
+
+To have 2 threads and workgroups in each dimension, run:
+```
+python3 fleshing/fleshout.py fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml --seed 1 --x-threads 2 --y-threads 2 --z-threads 2 --x-workgroups 2 --y-workgroups 2 --z-workgroups 2
+```
+This will produce programs with a maximum of 8 threads per workgroup and a maximum of 8 workgroups, giving a total maximum thread count of 64. Since each thread can follow an independent path, there are potentially 64 paths through the control flow graph being explored by this one test case.
+**TODO: Explain the generated SPIR-V for each fleshing method in more detail.**
+
+### Fleshing runner
+We provide a convenience script `fleshing/fleshing_runner.py` that takes in a folder of CFGs represented as XML files and will automatically produce test cases ready for execution. It can be configured to produce multiple different test cases for the same CFG. To produce a single test case for each CFG from the Vulkan CTS, run:
+```
+python3 fleshing/fleshing_runner.py fleshing/test_sets/vulkan_cts/xml/ --fleshing-seeds 1
+```
+The `--fleshing-seeds 1` option ensures each test case is produced with the seed 1. To create more test cases for each CFG, add more seeds, for example, `--fleshing-seeds 1 2 3` will produce three three test cases per CFG. If you don't care about the seeds used, you can simply pass the `--repeats X` flag, which will create `X` test cases for each CFG. 
+
+You can pass the same commands to the `fleshing_runner.py` as passed to `fleshout.py` earlier e.g. you can append `--op-phi` to enable op-phi instructions.
+
+Running the command above should only take a few seconds as the fleshing process is fast. You should see `Produced 391 amber files from 392 xml files` towards the bottom of the output. One XML file is skipped because the CFG either has no exit nodes or none are reachable from the entry point of the SPIR-V program. All test cases are written in the same directory as the corresponding XML file.
+
+### Executing fleshed test cases
+To execute the fleshed test cases, we provide an
+amber runner. To run it:
+```
+python3 fleshing/amber_runner.py </path/to/directory/containing/amber/files> <path/to/amber> 
+```
+In this case:
+```
+python3 fleshing/amber_runner.py fleshing/test_sets/vulkan_cts/xml/ /data/git/amber/out/Debug/amber 
+```
+As we used the seed 1 during the fleshing process, the results are deterministic and you should see that there are no errors found.
+**TODO: Provide an example of the output that should be seen.**
 
 ## Finding compiler bugs using fleshing (Claim 9)
 
 [TODO] Jack, can you work out which of the bits below to slot in here?
-
-
-
-
-
-
 
 
 ## The spirv-to-alloy tool
@@ -450,58 +504,6 @@ sudo docker load -i popl-artifact-latest.tar.gz
 ``` 
 sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 ```
-
-### Fleshing out the skeletons
-Fleshing is the process of turning a CFG skeleton into an exectuable program that will follow a predetermined path in the CFG. The fleshing/fleshout.py program is responsible for fleshing an individual CFG. It supports a number of options including:
-1. Fleshing a single thread
-2. Fleshing with op-phi instructions enabled
-3. Fleshing multiple threads that follow independent paths
-
-For the purpose of this explanation, we'll use the CFG in `./fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml`.
-
-To produce a basic fleshed test case that will have a single thread following a predetermined path, run:
-```
-python3 fleshing/fleshout.py ./fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml
-```
-
-This will output both the CFG skeleton as SPIR-V code, followed by the fully fleshed test case in the form of an amber program. Amber is essentially a convenient scripting language for running test cases. 
-
-We provide a convenience script `fleshing/fleshing_runner.py` that takes in a folder of CFGs represented as XML files and will automatically produce test cases ready for execution. It can be configured to produce multiple different test cases for the same CFG. To produce a single test case for each CFG from the Vulkan CTS it, run:
-```
-python3 fleshing/fleshing_runner.py fleshing/test_sets/vulkan_cts/xml/ --fleshing-seeds 1
-```
-The `--fleshing-seeds 1` option ensures each test case is produced with the seed 1. To create more test cases for each CFG, add more seeds, for example, `--fleshing-seeds 1 2 3` will produce three three test cases per CFG. 
-
-Running the command above should only take a few seconds, as the fleshing process is fast. You should see `Produced 391 amber files from 392 xml files` towards the bottom of the output. One XML file is skipped because the CFG either has no exit nodes or none are reachable from the entry point of the SPIR-V program. All test cases are written in the same directory as the corresponding XML file.
-
-To execute the test cases produced by the fleshing runner, we provide an
-amber runner. To run it:
-```
-python3 fleshing/amber_runner.py </path/to/directory/containing/amber/files> <path/to/amber> 
-```
-In this case:
-```
-python3 fleshing/amber_runner.py fleshing/test_sets/vulkan_cts/xml/ /data/git/amber/out/Debug/amber 
-```
-As we used the seed 1 during the fleshing process, the results are deterministic and you should see that there are no errors found.
-
-#### Op-phi instructions
-To include op-phi instructions in the fleshed test cases, append the --op-phi option. For example:
-```
-python3 fleshing/fleshing_runner.py fleshing/test_sets/vulkan_cts/xml/ --fleshing-seeds 1 --op-phi
-```
-The output should be similar to the regular fleshing process. You can execute the resulting test cases in the same manner you did before (i.e. using amber_runner.py)
-
-#### Independent Paths
-It is possible to have the test case use multiple threads, where each thread will follow an independent path through the control flow graph of the program. Although it is supported, we did not use the independent paths option with op-phi instructions. 
-
-In SPIR-V, threads can exist in the x, y and z dimensions of a workgroup, and there can be many workgroups. Similarly, workgroups are organised in the x, y and z dimensions. We provide options to limit the maximum number of threads and workgroups in each dimension as shown below.
-
-To have 2 threads and workgroups in each dimension, run:
-```
-python3 fleshing/fleshing_runner.py fleshing/test_sets/vulkan_cts/xml/ --fleshing-seeds 1 --x-threads 2 --y-threads 2 --z-threads 2 --x-workgroups 2 --y-workgroups 2 --z-workgroups 2
-```
-This will produce programs with a maximum of 8 threads per workgroup and a maximum of 8 workgroups, giving a total maximum thread count of 64. You can execute the resulting test cases in the same manner you did before (i.e. using amber_runner.py)
 
 ### Bugs
 Trophy Sheet: https://docs.google.com/spreadsheets/d/1Ovgi4Ylo5lGXc4sCVZoem-YU0qJPS5NXPeEKKj1nFn0/edit#gid=0
