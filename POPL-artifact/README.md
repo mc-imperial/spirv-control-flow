@@ -1,7 +1,7 @@
 # Artifact for "Taking Back Control in an Intermediate Representation for GPU Computing"
 
 ## Recommended platform
-We have prepared and tested this artifact on Ubuntu 20.04 and Ubuntu 20.10. We recommend that you run the artifact using the same versions. Any other linux distribution should work too, although you may have to change some installation commands to suit your distribution. 
+We have prepared and tested this artifact on Ubuntu 20.04 and Ubuntu 20.10. We recommend that you run the artifact using the same versions. Other Linux distributions should work too, although you may have to change some installation commands to suit your distribution. 
 
 ## Files included in the artifact
 
@@ -14,8 +14,8 @@ The main files you will need to download to investigate the artifact are as foll
 * `SPIRV-1.6r2.pdf`: the SPIR-V 1.6 specification, revision 2 (incorporating our changes)
 * `StructuredDominanceCFG.als`: our Alloy model
 * `org.alloytools.alloy.dist.jar`: JAR distribution of Alloy (for Linux)
-* `alloy.dmg`: DMG distribution of Alloy (for Mac)
-* `Bugs.ods`: TODO
+* `alloy.dmg`: DMG distribution of Alloy (for Mac - provided for convenience and completeness, though we recommend you try the artifact under Linux)
+* `Bugs.ods`: A spreadsheet summarising the status of the bugs found by our fleshing technique
 
 For completeness we have also made available the archives of test cases discussed in Tables 1 and 3 of the paper. However, these do *not* need to be downloaded in order to follow the steps below.
 
@@ -59,23 +59,20 @@ Before going further, please try the following steps and check that they work. A
 3. Install Docker: `sudo apt install docker.io`
 
 ### Check that the Alloy Analyzer GUI works
-<!---
-[TODO] Vasilis, please provide the bare minimum instructions for getting the Alloy GUI, opening our model in it and making it do something. No need to explain the purpose of the required commands; the point here is just to make sure the evaluators have a machine that's suitable, etc.
--->
-
-[Provide Alloy in the artifact and change links to refer to the .jar]
 
 Validating some of our claims require using the Alloy Analyzer GUI, which you will need to download.
 
-#### Installing the Analyzer
+#### Check that the Analyzer installs
 
-If on Mac OS X, run the Alloy Analyzer by just opening the `alloy.dmg` file available in the folder `Alloy 5.1.0` in the Docker container. For other platforms, just open the `jar` file provided in the same folder (these are also available at [Github Releases](https://github.com/AlloyTools/org.alloytools.alloy/releases) page), or type:
+On Linux, download the `org.alloytools.alloy.dist.jar` file provided with the artifact, and either double-click to open is, or run the following command from the console:
 
 `java -jar org.alloytools.alloy.dist.jar`
 
-in the console.
+If on Mac OS X, download and open the `alloy.dmg` file available as part of the artifact. 
 
-#### Using the Analyzer
+#### Check that the analyser works
+
+[TODO] Vasilis: can you rewrite this as a series of minimal instructions that they should follow to confirm things seem to be working? E.g., tell them to open the `StructuredDominanceCFG.als` file provided with the artifact, to do something specific with it, and what to expect. The following is along the right lines but it doesn't make it fully clear what they should expect.
 
 To load a model with the Alloy Analyzer, select `File` > `Open` in top toolbar, and in the dialog that opens, browse to and select the `als`-file you want to open.
 There will be one entry in the `Execute` menu for each `run`-command of the loaded model shown in the text editor section. If no `run`-command exists in the model, the `Run Default for 4 but 4 int, 4 seq expect 1` will be shown in the `Execute` menu (in this case the Analyzer will look for instances of the model with the size of the domains bounded to four). By selecting any `run`-command from the `Execute` menu, the Alloy Analyser will look for a matching example of the spec and will respond with either “No instance found” or “Instance found”. In the latter case, click the `Show` button from the toolbar, and a new window will open up (the Alloy Visualizer) with a diagram similar to this:
