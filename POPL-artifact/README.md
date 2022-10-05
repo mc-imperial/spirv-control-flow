@@ -376,7 +376,7 @@ Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., fo
 
 ## The spirv-to-alloy tool (Claim 6)
 
-[TODO] Jack, can you work out which of the bits below to slot in here?
+[TODO] Once Vasilis has produced an example spirv file from an als file, write instructions for how to use spirv-to-alloy to convert it back to an als file.
 
 ## Converting Vulkan CTS test cases to Alloy using spirv-to-alloy (Claim 7)
 One way of generating CFGs is to scrape them from the Vulkan conformance test suite (CTS). Running the commands below will scrape the Vulkan CTS and output Alloy (.als) files to the VulkanCTS directory. Each als file represents one scraped CFG.
