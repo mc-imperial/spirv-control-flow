@@ -5,21 +5,25 @@ We have prepared and tested this artifact on Ubuntu 20.04 and Ubuntu 20.10. We r
 
 ## Files included in the artifact
 
-* README.md - this readme file
-* ... - a Docker image
-* blah.pdf - Version ... of the SPIR-V specification
-* blah.pdf - Version ... of the SPIR-V specification
-* blah.pdf - Version ... of the SPIR-V specification
-* blah.als - Our Alloy model
-* blah.jar - the Alloy Analyzer version XYZ
-* blah.ods - a spreadsheet with details of the bugs we found
-* blah.tgz - test set ...
-* blah.tgz - test set ...
-* blah.tgz - test set ...
-* blah.tgz - test set ...
-* blah.tgz - test set ...
+The main files you will need to download to investigate the artifact are as follows:
 
-[TODO] a note that they do not need to download all the test sets unless they are interested.
+* `README.md` - this readme file
+* `docker-image.tar.gz` - a Docker image
+* `SPIRV-1.0r12.pdf`: the SPIR-V 1.0 specification, revision 12
+* `SPIRV-1.6r1.pdf`: the SPIR-V 1.6 specification, revision 1 (featuring the latest versions of definitions before our changes were accepted)
+* `SPIRV-1.6r2.pdf`: the SPIR-V 1.6 specification, revision 2 (incorporating our changes)
+* `StructuredDominanceCFG.als`: our Alloy model
+* `org.alloytools.alloy.dist.jar`: JAR distribution of Alloy (for Linux)
+* `alloy.dmg`: DMG distribution of Alloy (for Mac)
+* `Bugs.ods`: TODO
+
+For completeness we have also made available the archives of test cases discussed in Tables 1 and 3 of the paper. However, these do *not* need to be downloaded in order to follow the steps below.
+
+* `Tests-Basic-CTS.tar.gz`: The "Basic CTS" set (Table 1)
+* `Tests-Basic-Alloy.tar.gz`: The "Basic Alloy" set (Table 1)
+* `Tests-Phi-CTS.tar.gz`:  The "Phi CTS" set (Table 1)
+* `Tests-Phi-Alloy.tar.gz`: The "Phi Alloy" set (Table 1)
+* `Tests-Throughput.tar.gz`: The tests used for throughput testing (Table 3)
 
 ## List of claims
 
