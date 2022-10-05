@@ -318,7 +318,6 @@ sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 
 ## The alloy-to-spirv tool (Claim 5)
 
-[TODO] Vasilis: Use the command line to generate a valid example and an invalid example (maybe the same ones as in Claim 3). Then use alloy-to-spirv to convert each into SPIR-V. Then use spirv-dis to show the disassembly and point out the mege instructions. Then use spirv-val to validate them and confirm that this fits in with our model's validity claims.
 
 ### Running Alloy Analyzer from the Command Line
 
@@ -344,7 +343,7 @@ Use the following command:
 ```
 to convert the generated Alloy example into SPIR-V assembly.
 
-You can then assemble this SPIR-V and check its validity via (using the `spirv-as` and `spirv-val` binaries from the latest release of [SPIR-V Tools](https://github.com/KhronosGroup/SPIRV-Tools)):
+You can then assemble this SPIR-V and check its validity via (using the `spirv-as` and `spirv-val` binaries from the SPIRV-Tools folder:
 
 ```
 spirv-as --target-env spv1.3 <path_to_asm_file>  -o  <path_to_spv_file> --preserve-numeric-ids
