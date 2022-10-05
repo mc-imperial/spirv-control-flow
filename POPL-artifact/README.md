@@ -63,17 +63,22 @@ Before going further, please try the following steps and check that they work. A
 
 Validating some of our claims require using the Alloy Analyzer GUI, which you will need to download.
 
-To run the Alloy Analyzer on Mac OS X, just download and open the alloy.dmg file available [here](https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v5.1.0/alloy.dmg). For other platforms, just download the jar file [here](https://github.com/AlloyTools/org.alloytools.alloy/releases/download/v5.1.0/org.alloytools.alloy.dist.jar) (available at [Github Releases](https://github.com/AlloyTools/org.alloytools.alloy/releases) page) then double-click on the jar file, or type:
+#### Installing the Analyzer
+
+If on Mac OS X, run the Alloy Analyzer by just opening the `alloy.dmg` file available in the folder `Alloy 5.1.0` in the Docker container. For other platforms, just open the `jar` file provided in the same folder (these are also available at [Github Releases](https://github.com/AlloyTools/org.alloytools.alloy/releases) page), or type:
 
 `java -jar org.alloytools.alloy.dist.jar`
 
 in the console.
+
+#### Using the Analyzer
+
 To load a model with the Alloy Analyzer, select `File` > `Open` in top toolbar, and in the dialog that opens, browse to and select the `als`-file you want to open.
 There will be one entry in the `Execute` menu for each `run`-command of the loaded model shown in the text editor section. If no `run`-command exists in the model, the `Run Default for 4 but 4 int, 4 seq expect 1` will be shown in the `Execute` menu (in this case the Analyzer will look for instances of the model with the size of the domains bounded to four). By selecting any `run`-command from the `Execute` menu, the Alloy Analyser will look for a matching example of the spec and will respond with either “No instance found” or “Instance found”. In the latter case, click the `Show` button from the toolbar, and a new window will open up (the Alloy Visualizer) with a diagram similar to this:
 
 ![](https://i.imgur.com/CbSyq0r.png)
 
-You can export the solution visualised to a graphviz diagram or to XML by going to `File` > `Export To` > `Dot...` or `XML...` from the Vizualiser's Menu Bar.
+To export the visualised solution to a graphviz diagram or to XML, go to `File` > `Export To` > `Dot...` or `XML...` from the Vizualiser's Menu Bar.
 
 ### Download and check that the Docker image works
 We provide a docker image that has all the necessary software pre-installed. For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
@@ -145,14 +150,13 @@ To exit the container, type `exit`.
 
 [TODO] Ally: once Vasilis has revised this, go through and give page numbers in the SPIR-V PDFs.
 
-[TODO] The file "blah.als" in the root of the artifact contains the Alloy model. [In what follows refer to lines in that file.]
 
-
+The file `/AlloyModel/StructuredDominanceCFG.als` in the root of the artifact contains the Alloy model.
 To give an insight into how the model’s axioms encode the SPIR-V spec’s ([SPIR-V 1.6r2](https://www.khronos.org/registry/SPIR-V/specs/unified1/SPIRV.html)) rules, we provide below few of our model’s 26 predicates that capture CFG validity constraints, all of which must hold for a CFG to be deemed valid. 
 
 
 
-### Predicate 1
+### Predicate 1 [line 586 in the model file]
 
 ```
 pred LoopHeaderStructurallyDominatesContinueTarget
@@ -170,7 +174,7 @@ This predicate encodes the requirement that every ([structurally reachable](http
 
 
 
-### Predicate 2
+### Predicate 2 [line 540 in the model file]
 
 ```
 pred UniqueMergeBlock 
@@ -180,7 +184,7 @@ pred UniqueMergeBlock
 ```
 This predicate encodes the constraint that the merge block declared by a [header block](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#HeaderBlock) must not be a merge block declared by any other [header block](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#HeaderBlock) [[SPIR-V 1.6r2, §2.11.1]](https://www.khronos.org/registry/SPIR-V/specs/unified1/SPIRV.html). The predicate tells that for every [structurally reachable](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#StructurallyReachable) [header block](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#HeaderBlock) (`&` denotes intersection), e.g., *A* in the CFG above, its merge block, $mb1$, is different from any other [structurally reachable](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#StructurallyReachable) [header block](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#HeaderBlock)’s merge block $mb2$., i.e., $mb1 \cap mb2= \emptyset$.
 
-### Predicate 3
+### Predicate 3 [line 563 in the model file]
 
 ```
 pred  BackEdgesBranchToLoopHeader 
@@ -194,7 +198,7 @@ pred OneBackEdgeBranchingToLoopHeader
 ```
 The two predicates above embody the rule that all [back edges](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#BackEdge) must branch to a [loop header](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#LoopHeader) (encoded by the first predicate) with each [loop header](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#LoopHeader) having exactly one back edge branching to it (encoded by the second predicate) [[SPIR-V 1.6r2, §2.11.1]](https://www.khronos.org/registry/SPIR-V/specs/unified1/SPIRV.html). The first predicate specifies that every back-edge is pointing to a [structurally reachable](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#StructurallyReachable) [loop header](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#LoopHeader) (i.e., the range for the binary relation `backEdge`  is a subset of the set of all [structurally reachable](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#StructurallyReachable) [loop header](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#LoopHeader)s); the second predicate restricts the number of elements of `backEdge` that end with an element in `LoopHeader` to one.
 
-### Predicate 4
+### Predicate 4 [line 725 in the model file]
 
 ```
 pred OpSwitchBlockDominatesAllItsCases 
@@ -209,7 +213,7 @@ The figure below is an example of violation of the rule as the switch header 12 
 
 ## Using our Alloy model to generate valid and invalid examples (Claim 3)
 
-[TODO: includet the jar file and als file in the artifact, and change the instructions to tell the evaluator to use those files.]
+
 
 ### Generating valid examples 
 
@@ -296,7 +300,7 @@ pred Valid {
 	InvalidBranchToOuterOpSwitchMerge 
 	NobranchBetweenCaseConstructs 
 	BranchesBetweenConstructs 
-<span style="color:red;font-weight:700;font-size:15px">not    OpSwitchBlockDominatesAllItsCases</span>
+<span style="color:red;font-weight:700;font-size:15px">not OpSwitchBlockDominatesAllItsCases</span>
 	AtMostOneBranchToAnotherCaseConstruct 
 	CaseConstructBranchedToByAtMostOneOther 
 	OrderOfOpSwitchTargetOperands
@@ -327,7 +331,6 @@ sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 
 ### Running Alloy Analyzer from the Command Line
 
-[TODO] Vasilis, at this point could they invoke Alloy from the command line to generate a valid example and an invalid example, push them through alloy-to-spirv and then through spirv-as, and confirm that spirv-val accepts one and rejects the other?
 
 You may want to run Alloy from command-line in which case the [Alloy*](https://github.com/johnwickerson/alloystar) should be installed. Note the absolute paths to the Alloy*.
 
