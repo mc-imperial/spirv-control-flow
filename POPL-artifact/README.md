@@ -50,7 +50,9 @@ Before going further, please try the following steps and check that they work. A
 
 ### Get required packages
 
-[TODO] apt commands to get Java and Docker.
+1. Install Java 8: `sudo apt install openjdk-8-jdk`
+2. Check Java version: `java -version`, If your java version is not Java 8, then update your default version: `sudo update-alternatives --config java`
+3. Install Docker: `sudo apt install docker.io`
 
 ### Check that the Alloy Analyzer GUI works
 <!---
