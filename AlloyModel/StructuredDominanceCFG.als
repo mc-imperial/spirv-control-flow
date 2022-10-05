@@ -948,7 +948,6 @@ pred	 ex {}
 
 pred Valid { 
 
---	WeaklyConnected 
 	UniqueMergeBlock 
 	HeaderBlockStrictlyStructurallyDominatesItsMergeBlock 
 	BackEdgesBranchToLoopHeader 
@@ -1024,11 +1023,18 @@ pred invalid_example {
 --test2: run { invalid_example && Valid } for 5 Block
 
 pred Vibrant 
+/*
+ * There should not exist Blocks A, B, C, such that:
+ * B is the only structural-successor of A
+ * A is the only structural-predecessor of B
+ * C is the only structural-successor of B
+ * B is the only structural-predecessor of C
+ */
 {
 	all disj A,B,C: Block | not (  #(A. (branchSet + merge + continue) - A) = 1 and B in A.(branchSet + merge + continue)  and 
-					#(B.~(branchSet + merge + continue) - B) = 1 and A in B.~(branchSet + merge + continue) and
-					#(B. (branchSet + merge + continue) - B) = 1 and C in B. (branchSet + merge + continue) and 
-					#(C.~(branchSet + merge + continue) - C) = 1 and B in C.~(branchSet + merge + continue) 
+											 #(B.~(branchSet + merge + continue) - B) = 1 and A in B.~(branchSet + merge + continue) and
+											 #(B. (branchSet + merge + continue) - B) = 1 and C in B. (branchSet + merge + continue) and 
+											 #(C.~(branchSet + merge + continue) - C) = 1 and B in C.~(branchSet + merge + continue) 
 										  )
 	all sw: SwitchBlock | #(sw<:branch) <= 3
 
