@@ -155,7 +155,7 @@ In Section 4 of the paper we claim that our revised definitions and rules have b
 [TODO] Ally: once Vasilis has revised this, go through and give page numbers in the SPIR-V PDFs.
 
 
-The file `/AlloyModel/StructuredDominanceCFG.als` in the root of the artifact contains the Alloy model.
+The file `StructuredDominanceCFG.als` in the root of the artifact contains the Alloy model.
 To give an insight into how the model’s axioms encode the SPIR-V spec’s ([SPIR-V 1.6r2](https://www.khronos.org/registry/SPIR-V/specs/unified1/SPIRV.html)) rules, we provide below few of our model’s 26 predicates that capture CFG validity constraints, all of which must hold for a CFG to be deemed valid. 
 
 
@@ -221,7 +221,7 @@ The figure below is an example of violation of the rule as the switch header 12 
 
 ### Generating valid examples 
 
-A naive approach for generating a valid example, i.e., one that conforms to all SPIR-V rules, using the Alloy model is to run the [Alloy GUI Analyzer](https://github.com/AlloyTools/org.alloytools.alloy), open the [model](https://github.com/mc-imperial/spirv-control-flow/blob/artifact/AlloyModel/StructuredDominanceCFG.als) and under the `Execute` menu option select `Run Default`. The examples that will be generated using this approach, however, lack interesting stories; they may introduce minimal examples lacking vividness (for e.g., instances with low nesting level) or perhaps larger examples with repeating patterns -- all of them obeying the SPIR-V spec rules, by the way.
+A naive approach for generating a valid example, i.e., one that conforms to all SPIR-V rules, using the Alloy model is to run the Alloy GUI Analyzer and under the `Execute` menu option select `Run Default`. The examples that will be generated using this approach, however, lack interesting stories; they may introduce minimal examples lacking vividness (for e.g., instances with low nesting level) or perhaps larger examples with repeating patterns -- all of them obeying the SPIR-V spec rules, by the way.
 
 To patronise the Alloy Analyzer so that the generated examples are of more interest, we introduce new auxiliary constraints to the model which only cater for the shape of the example and the patterns of the constructs, all being orthogonal to the SPIR-V spec. The constraint below, for e.g., encodes three demands: 
 1. the first part models the fact that there should not exist Blocks *A*, *B*, *C*, such that:
@@ -322,7 +322,9 @@ sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 ### Running Alloy Analyzer from the Command Line
 
 
-You may want to run Alloy from command-line in which case the [Alloy*](https://github.com/johnwickerson/alloystar) should be installed. Note the absolute paths to the Alloy*.
+You may want to run Alloy from command-line in which case the Alloy* should be installed.  Note the absolute paths to the `Alloy*`
+
+    **_NOTE:_** We use `Alloy*` just because it's a convenient way to get a command-line version of Alloy; we don't actually need its higher-order quantification abilities.
 
 To generate a valid example on macOS run the following from the command line:
 
@@ -358,7 +360,7 @@ The assembler, `spirv-as`, reads the assembly language text, and emits the binar
 By changing the value of `Diter` to `true`, the analyser will iteratively generate all possible instances of the specification (saved as XML files); in this case timeout will come in handy allowing you to run the command with a time limit as follows: 
 
 ```
-timeout <duration> java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/ally/model/StructuredDominanceCFG.als>
+timeout <duration> java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/alloy/model/StructuredDominanceCFG.als>
 ```
 where 'duration' can be a positive integer or a floating-point number, followed by an optional unit suffix:
 
