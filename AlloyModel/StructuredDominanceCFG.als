@@ -1051,4 +1051,4 @@ pred MoreInteresting
 	all l: LoopHeader | l not in l.continue.branchSet
 }
 
-run {  Valid && Vibrant && MoreInteresting  && Block = StructurallyReachableBlock     && #HeaderBlock<=3 } for exactly 8 Block, 5 int 
+run { Valid && Vibrant && MoreInteresting && #LoopHeader=1 && #(SelectionHeader-SwitchBlock)=1 && #SwitchBlock=1 } for exactly 8 Block
