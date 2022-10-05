@@ -76,15 +76,6 @@ There will be one entry in the `Execute` menu for each `run`-command of the load
 You can export the solution visualised to a graphviz diagram or to XML by going to `File` > `Export To` > `Dot...` or `XML...` from the Vizualiser's Menu Bar.
 
 ### Download and check that the Docker image works
-
-[TODO] Jack, please provide minimal instructions for launching the docker container and running 1-2 simple, relevant commands inside it. Again, the point is to quickly establish whether there's something horribly wrong.
-
-Python
-
-Amber
-
-Alloy*
-
 We provide a docker image that has all the necessary software pre-installed. For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
 
 0. Download the docker image from [here](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/ESwzq64_UitNury5bFPwkZYBz9ZTTN5UX5-UEMdMu2OpZg). **TODO: Change this from Onedrive to wherever artifact is hosted.**
