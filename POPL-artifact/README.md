@@ -336,42 +336,34 @@ Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., fo
  
 
 ## The alloy-to-spirv tool (Claim 5)
-
-
-### Running Alloy Analyzer from the Command Line
-
-
-You may want to run Alloy from command-line in which case the Alloy* should be installed.  Note the absolute paths to the `Alloy*`
-
-    **_NOTE:_** We use `Alloy*` just because it's a convenient way to get a command-line version of Alloy; we don't actually need its higher-order quantification abilities.
-
-To generate a valid example on macOS run the following from the command line:
+The alloy-to-spirv tool converts a CFG produced by Alloy into a skeleton SPIR-V program. Let's start by generating a CFG with Alloy. Run all commands in this section within  the docker container. 
 
 ```
-java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/ally/model/StructuredDominanceCFG.als>
+cd /data/git/spirv-control-flow
+java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=alloy-to-spirv -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
 ```
-where processor_info is `amd64-linux` if the platform machine is AMD64"; `x86-linux` if 32-bit architecture linux; `x86-mac` if MacOS; `x86-windows` if win32 and `x86-freebsd` if platform is freebsd7.
-The above command will search for the compiled version of the `edu/mit/csail/sdg/alloy4whole/RunAlloy` class and load it; next, it will call the main method passing the model file as argument. 
-Note that the Alloy model provided in the Docker image contains already a `run`-command which will be executed upon invoking the Alloy Analyzer from Command Line. The solution will be saved as an XML-file to the folder passed as value of `Dout`, which must exist. 
-
-The procedure for generating a valid example differs from generating invalid one in that in the latter case a subset of predicates from the `Valid` predicate in the model are negated, as described earlier. 
+This should produce output similar to the following:
+```
+Running Alloy, using MiniSat on command 0.
+20:35:16: Translation took 2.23s (224521 vars, 432 primary vars, 737481 clauses).
+Solving took 3.86s.
+20:35:20: Solution saved to alloy-to-spirv/test_0.xml.
+```
+This output tells us that the CFG was saved to the file `alloy-to-spirv/test_0.xml`. Let's use alloy-to-spirv to convert it into a SPIR-V skeleton program and save it to `alloy-to-spirv/example.asm`:
+```
+python3 alloy-to-spirv/convert.py alloy-to-spirv/test_0.xml > alloy-to-spirv/example.asm
+```
 
 ### Validating examples with the Khronos official validator. 
-
-Use the following command:
+Once we have a skeleton SPIR-V program, we can assemble it using `spirv-as` and check its validity using `spirv-val`. To assemble it into a binary `.spv` program:
 ```
-./alloy-to-spirv/convert.py  <path_to_xml_file>   >   <path_to_asm_file>
+spirv-as --target-env spv1.3 alloy-to-spirv/example.asm -o alloy-to-spirv/example.spv --preserve-numeric-ids
 ```
-to convert the generated Alloy example into SPIR-V assembly.
-
-You can then assemble this SPIR-V and check its validity via (using the `spirv-as` and `spirv-val` binaries from the SPIRV-Tools folder:
-
+The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val` can operate. To run the validator:
 ```
-spirv-as --target-env spv1.3 <path_to_asm_file>  -o  <path_to_spv_file> --preserve-numeric-ids
-
-spirv-val <path_to_spv_file>
+spirv-val --target-env spv1.3 alloy-to-spirv/example.spv
 ```
-The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val`. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found. 
+The validator agrees if it does not print any output indicating an error. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found. 
 
 ## The spirv-to-alloy tool (Claim 6)
 
