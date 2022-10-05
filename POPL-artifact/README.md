@@ -374,9 +374,27 @@ Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., fo
 [TODO] Jack, can you work out which of the bits below to slot in here?
 
 ## Converting Vulkan CTS test cases to Alloy using spirv-to-alloy (Claim 7)
+One way of generating CFGs is to scrape them from the Vulkan conformance test suite (CTS). Running the commands below will scrape the Vulkan CTS and output Alloy (.als) files to the VulkanCTS directory. Each als file represents one scraped CFG.
 
-[TODO] Jack, can you work out which of the bits below to slot in here?
+``` 
+cd /data/git/spirv-control-flow
+python3 ./spirv-to-alloy/scrape-vulkan-cts.py VulkanCTS VulkanCTS /data/git/VK-GL-CTS/ /data/glslang/bin/glslangValidator /data/git/SPIRV-Tools/pre-built/tools/spirv-as /data/git/SPIRV-Tools/pre-built/tools/spirv-dis /data/git/spirv-control-flow/spirv-to-alloy/build/src/spirv_to_alloy/spirv-to-alloy
+```
 
+Once the als files are generated, we can check that they conform to our Alloy model (i.e. they are valid CFGs) and convert them to the XML representation that our fleshing tool can consume. To begin the validation and XML conversion process, run the following command:
+
+```
+python3 isCFGdeemedFeasible.py -a /data/git/spirv-control-flow/VulkanCTS -x /data/git/spirv-control-flow/fleshing/test_sets/vulkan_cts/xml -c /data/git/alloystar --block-limit 40
+```
+
+Running this command will take some time (1-2 hours) as Alloy must verify each CFG. If you just want to convert the CFGs into XML, then append the --skip-validation option to the above command and the process should take around 10-15 minutes. You should see output like the following:
+```
+423 GRAPHS WERE PROCESSED. 0 GRAPHS HAD ERRORS. 392 GRAPHS WERE CHECKED. 0 ARE INFEASIBLE. 31 WERE SKIPPED.
+```
+
+The 31 CFGs skipped have more than 40 blocks and would take a relatively long time to verify and convert, so they are skipped to keep the time needed for this example short. You can vary the block limit to see how it affects the verification and conversion time.
+
+Once the process is complete, there should be directories containing xml files in the `./fleshing/test_sets/vulkan_cts/xml directory`.
 ## Control flow graph fleshing (Claim 8)
 
 [TODO] Jack, can you work out which of the bits below to slot in here?
@@ -432,29 +450,6 @@ sudo docker load -i popl-artifact-latest.tar.gz
 ``` 
 sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 ```
-
-### Generating CFGs from Vulkan CTS
-One way of generating CFGs is to scrape them from the Vulkan conformance test suite (CTS). Running the commands below will scrape the Vulkan CTS and output Alloy (.als) files to the VulkanCTS directory. Each als file represents one scraped CFG.
-
-``` 
-cd /data/git/spirv-control-flow
-python3 ./spirv-to-alloy/scrape-vulkan-cts.py VulkanCTS VulkanCTS /data/git/VK-GL-CTS/ /data/glslang/bin/glslangValidator /data/git/SPIRV-Tools/pre-built/tools/spirv-as /data/git/SPIRV-Tools/pre-built/tools/spirv-dis /data/git/spirv-control-flow/spirv-to-alloy/build/src/spirv_to_alloy/spirv-to-alloy
-```
-
-Once the als files are generated, we can check that they conform to our Alloy model (i.e. they are valid CFGs) and convert them to the XML representation that our fleshing tool can consume. To begin the validation and XML conversion process, run the following command:
-
-```
-python3 isCFGdeemedFeasible.py -a /data/git/spirv-control-flow/VulkanCTS -x /data/git/spirv-control-flow/fleshing/test_sets/vulkan_cts/xml -c /data/git/alloystar --block-limit 40
-```
-
-Running this command will take some time (1-2 hours) as Alloy must verify each CFG. If you just want to convert the CFGs into XML, then append the --skip-validation option to the above command and the process should take around 10-15 minutes. You should see output like the following:
-```
-423 GRAPHS WERE PROCESSED. 0 GRAPHS HAD ERRORS. 392 GRAPHS WERE CHECKED. 0 ARE INFEASIBLE. 31 WERE SKIPPED.
-```
-
-The 31 CFGs skipped have more than 40 blocks and would take a relatively long time to verify and convert, so they are skipped to keep the time needed for this example short. You can vary the block limit to see how it affects the verification and conversion time.
-
-Once the process is complete, there should be directories containing xml files in the `./fleshing/test_sets/vulkan_cts/xml directory`.
 
 ### Fleshing out the skeletons
 Fleshing is the process of turning a CFG skeleton into an exectuable program that will follow a predetermined path in the CFG. The fleshing/fleshout.py program is responsible for fleshing an individual CFG. It supports a number of options including:
