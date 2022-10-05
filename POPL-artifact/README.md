@@ -263,22 +263,9 @@ If an example is found, it can be visualised by clicking on the `Show` button (s
 
 ![](https://i.imgur.com/LOWpPLA.png)
 
-[TODO] Can we move this stuff about alloy-to-spirv, spirv-as and spirv-val to later in the artifact, inside Docker? We can say: "We show below, under Claim XXX, how to ..."
+We show below, under Claim 5, how to convert the generated Alloy example into SPIR-V assembly and cross check its validity using the official Khronos validator `spirv-val`.
 
-Next, use the following command:
-```
-./alloy-to-spirv/convert.py  <path_to_xml_file>   >   <path_to_asm_file>
-```
-to convert the generated Alloy example into SPIR-V assembly.
 
-You can then assemble this SPIR-V and check its validity via (using the `spirv-as` and `spirv-val` binaries from the latest release of [SPIR-V Tools](https://github.com/KhronosGroup/SPIRV-Tools)):
-
-```
-spirv-as --target-env spv1.3 <path_to_asm_file>  -o  <path_to_spv_file> --preserve-numeric-ids
-
-spirv-val <path_to_spv_file>
-```
-The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val`. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found. 
 
 ### Generating invalid examples 
 
@@ -344,6 +331,23 @@ The above command will search for the compiled version of the `edu/mit/csail/sd
 Note that the Alloy model provided in the Docker image contains already a `run`-command which will be executed upon invoking the Alloy Analyzer from Command Line. The solution will be saved as an XML-file to the folder passed as value of `Dout`, which must exist. 
 
 The procedure for generating a valid example differs from generating invalid one in that in the latter case a subset of predicates from the `Valid` predicate in the model are negated, as described earlier. 
+
+### Validating examples with the Khronos official validator. 
+
+Use the following command:
+```
+./alloy-to-spirv/convert.py  <path_to_xml_file>   >   <path_to_asm_file>
+```
+to convert the generated Alloy example into SPIR-V assembly.
+
+You can then assemble this SPIR-V and check its validity via (using the `spirv-as` and `spirv-val` binaries from the latest release of [SPIR-V Tools](https://github.com/KhronosGroup/SPIRV-Tools)):
+
+```
+spirv-as --target-env spv1.3 <path_to_asm_file>  -o  <path_to_spv_file> --preserve-numeric-ids
+
+spirv-val <path_to_spv_file>
+```
+The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val`. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found. 
 
 
 ### Generating examples in bulk
