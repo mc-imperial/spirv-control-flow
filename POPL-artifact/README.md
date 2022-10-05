@@ -317,6 +317,23 @@ sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 ```
 
 [TODO] Take text from below about generating examples on command line and in bulk, and then extend it with performance stuff.
+### Generating examples in bulk
+
+By changing the value of `Diter` to `true`, the analyser will iteratively generate all possible instances of the specification (saved as XML files); in this case timeout will come in handy allowing you to run the command with a time limit as follows: 
+
+```
+timeout <duration> java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/alloy/model/StructuredDominanceCFG.als>
+```
+where 'duration' can be a positive integer or a floating-point number, followed by an optional unit suffix:
+
+* s - seconds (default)
+* m - minutes
+* h - hours
+* d - days
+
+When no unit is used, it defaults to seconds. If the duration is set to zero, the associated timeout is disabled.
+Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., for 20 seconds (using MiniSat as SAT solver), it generated 796 examples of 8 blocks; took 1,91s to translate the model into a Boolean formula whose satisfying assignments correspond to instances in the model; and the rest of the time was used by the SAT solver to solve the Boolean formula for all the instances. Recall that the scope (8) that bounds the size of the domains is defined in the `run`-command in the model file. The scope can be modified within reasonable limits; the larger the scope, the larger the search space and the slower the analysis will become (even intractable).
+ 
 
 ## The alloy-to-spirv tool (Claim 5)
 
@@ -355,27 +372,6 @@ spirv-as --target-env spv1.3 <path_to_asm_file>  -o  <path_to_spv_file> --preser
 spirv-val <path_to_spv_file>
 ```
 The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val`. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found. 
-
-
-### Generating examples in bulk
-
-By changing the value of `Diter` to `true`, the analyser will iteratively generate all possible instances of the specification (saved as XML files); in this case timeout will come in handy allowing you to run the command with a time limit as follows: 
-
-```
-timeout <duration> java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/alloy/model/StructuredDominanceCFG.als>
-```
-where 'duration' can be a positive integer or a floating-point number, followed by an optional unit suffix:
-
-* s - seconds (default)
-* m - minutes
-* h - hours
-* d - days
-
-When no unit is used, it defaults to seconds. If the duration is set to zero, the associated timeout is disabled.
-Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., for 20 seconds (using MiniSat as SAT solver), it generated 796 examples of 8 blocks; took 1,91s to translate the model into a Boolean formula whose satisfying assignments correspond to instances in the model; and the rest of the time was used by the SAT solver to solve the Boolean formula for all the instances. Recall that the scope (8) that bounds the size of the domains is defined in the `run`-command in the model file. The scope can be modified within reasonable limits; the larger the scope, the larger the search space and the slower the analysis will become (even intractable).
- 
-
-
 
 ## The spirv-to-alloy tool (Claim 6)
 
