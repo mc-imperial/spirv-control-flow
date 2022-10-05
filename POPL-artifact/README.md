@@ -82,7 +82,7 @@ Export the visualised solution to an XML by going to `File` > `Export To` > `XML
 ### Download and check that the Docker image works
 We provide a docker image that has all the necessary software pre-installed. For now, let's download the image, check that it can be loaded and run some basic checks to make sure that it works as expected.
 
-0. Download the docker image from [here](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/ESwzq64_UitNury5bFPwkZYBz9ZTTN5UX5-UEMdMu2OpZg). **TODO: Change this from Onedrive to wherever artifact is hosted.**
+0. Download the docker image (docker-image.tar.gz).
 
 1. Load the docker image
 ``` 
@@ -738,7 +738,7 @@ As we used the seed 1 during the fleshing process, the results are deterministic
 ```
 
 ## Finding compiler bugs using fleshing (Claim 9)
-We will demonstrate three bugs that we found in the Google SwiftShader driver (the full list of bugs can be [found here](https://docs.google.com/spreadsheets/d/1Ovgi4Ylo5lGXc4sCVZoem-YU0qJPS5NXPeEKKj1nFn0/edit#gid=0)). We use SwiftShader because it requires no GPU hardware (it runs on the CPU) and it is relatively fast to execute test cases. Run all commands from the `/data/git/spirv-control-flow` directory. 
+We will demonstrate three bugs that we found in the Google SwiftShader driver (the full list of bugs can be found in Bugs.ods). We use SwiftShader because it requires no GPU hardware (it runs on the CPU) and it is relatively fast to execute test cases. Run all commands from the `/data/git/spirv-control-flow` directory. 
 
 1. The first bug found is a segfault (crash bug). The bug report is [here](https://issuetracker.google.com/issues/228985910). To trigger this bug, run the following:
 ```
@@ -763,19 +763,18 @@ fleshing/examples/bugs/reduced-output-oracle.amber: Line 119: Verifier failed: 0
 This output indicates a miscompilation bug. In other words, the compiler in the SwiftShader driver did not crash, but instead produced incorrect code. Our oracle expects a particular path to be taken and when that path is not taken, we know there is a miscompilation bug. In this case, the expectation was that block 8 should have been visited first (this is the entry block to the program). However, nothing was written to the output array to record this (the output array is initialized with zeros). This indicates that there is a miscompilation bug, as the compiler in the driver must preserve writes to the output array.
 
 ### Test Sets:
-Below, we provide links to all of the test sets used in the paper. For the purpose of checking this example, you only need to download Test set 1. You can download and run the other test sets, but be warned that some are quite large.
-**TODO: Update the links below with the zenodo links**
-1. [Fleshed CTS](https://imperiallondon-my.sharepoint.com/:u:/r/personal/jclark2_ic_ac_uk/Documents/amber_files.tar.gz?csf=1&web=1&e=CcbNio)
-2. [Test set 1](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/EWU9bDMkHCFOuuQSkkK_UdwBOdE4Eat_EI_c-uGcCG0n9w?e=wYXxwQ)
-3. [OpPhi Vulkan CTS](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/EbxFzMGnn5tMgupCVLJGDq8Bxf8Oo2rkj8KUkfUiTwGauQ?e=65wz8j)
-4. [OpPhi Third test set](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/ERUWMRpRFWVMl_A0gJ6zynABeNymnUEfoiUHCYMHdPHV7g?e=wEY7dT)
-5. [Independent paths test set (throughput testing)](https://imperiallondon-my.sharepoint.com/:u:/g/personal/jclark2_ic_ac_uk/EeSyKX4zhgtHvFfzZJUStCcBG_XNsvq6_XPJyk5SDfiSlA?e=8ba3Jg). Warning, this will take somewhere between 10 and 39 hours to run.
+Below, we list all of the test sets used in the paper. For the purpose of checking this example, you only need to download `Tests-Basic-Alloy.tar.gz`. You can download and run the other test sets, but be warned that some are quite large.
+1. Tests-Basic-CTS.tar.gz: The "Basic CTS" set (Table 1)
+2. Tests-Basic-Alloy.tar.gz: The "Basic Alloy" set (Table 1)
+3. Tests-Phi-CTS.tar.gz: The "Phi CTS" set (Table 1)
+4. Tests-Phi-Alloy.tar.gz: The "Phi Alloy" set (Table 1)
+5. Tests-Throughput.tar.gz: The tests used for throughput testing (Table 3). Warning, this will take somewhere between 10 and 39 hours to run.
 
 The test sets above can all be downloaded and copied to the docker container. To copy them, run the following:
 ```
 docker cp /path/to/downloaded/test/cases <docker container id>:/desired/location/in/docker/container 
 ```
-To find the container id, run `docker ps`. You can execute the test cases using the amber runner as normal. For example, to execute Test set 1, which was able to find 3 distinct bugs in SwiftShader, run:
+To find the container id, run `docker ps`. You can execute the test cases using the amber runner as normal. For example, to execute Tests-Basic-Alloy, which was able to find 3 distinct bugs in SwiftShader, run:
 ```
 python3 fleshing/amber_runner.py /desired/location/in/docker/container /data/git/amber/out/Debug/amber
 ```
