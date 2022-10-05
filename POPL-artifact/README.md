@@ -649,15 +649,26 @@ will take the branch to `%13` (`directions_10[0]` is loaded into `%temp_10_6`). 
 
 To detect miscompilations, we need check to check that blocks were visited in the order we expected. To do this, whenever a block is visited, it records its unique id to the `output` array. The compiler must preserve all writes to this array as it is visible to the host CPU. Therefore, if any values are missing or incorrect, it indicates a miscompilation. The amber code contains an expectation to check that the `output` array matches the expected path, in this case the check is ` EXPECT output IDX 0 EQ 8 9 10 13 0` which asserts that the `output` array should be equal to `[8, 9, 10, 13]`.
 
-**TODO: Explain the generated SPIR-V for each fleshing method in more detail.**
-
 ### Op-phi instructions
 To include op-phi instructions in the fleshed test case, append the --op-phi option. For example:
 ```
 python3 fleshing/fleshout.py fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml --seed 1 --op-phi
 ```
-The output should be similar to the regular fleshing process.
-**TODO: Explain the generated SPIR-V for each fleshing method in more detail.**
+Op-phi instructions change the way that we maintain the directions index variable for each directions array. The directions index variable is incremented on each visit to a conditional block so that a different choice can be made when it is next visited. By default, we use `OpLoad` and `OpStore` instructions, which are basic load/store instructions. However, since SPIR-V programs are required to be in SSA form, it is easy to replace these load/store instructions with `OpPhi` instructions. To see the difference between a program with and without `OpPhi` instructions, compare the SPIR-V for block 10 in the new program (show below), with the previous program:
+```
+         %10 = OpLabel ; validCFG/Block$4
+  %temp_10_0 = OpPhi %4 %temp_9_2 %9
+  %temp_10_3 = OpPhi %4 %9_target_10 %9
+  %temp_10_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_10_0
+               OpStore %temp_10_1 %constant_10
+  %temp_10_2 = OpIAdd %4 %temp_10_0 %constant_1
+  %temp_10_4 = OpAccessChain %storage_buffer_int_ptr %directions_10_variable %constant_0 %temp_10_3
+  %temp_10_5 = OpLoad %4 %temp_10_4
+  %temp_10_6 = OpIEqual %3 %temp_10_5 %constant_1
+  %temp_10_7 = OpIAdd %4 %temp_10_3 %constant_1
+               OpStore %directions_10_index %temp_10_7
+               OpBranchConditional %temp_10_6 %11 %13
+```
 
 ### Independent Paths
 It is possible to have the test case use multiple threads, where each thread will follow an independent path through the control flow graph. Although it is supported, for simplicity we do not use the independent paths option with op-phi instructions. 
