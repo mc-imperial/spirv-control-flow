@@ -129,7 +129,7 @@ Summary: 0 pass, 0 fail
 ```
 cd /data/git/spirv-control-flow
 mkdir -p fleshing/test_sets/alloy/xml
-java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=fleshing/test_sets/alloy/xml -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
+java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=fleshing/test_sets/alloy/xml -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/alloy/model/StructuredDominanceCFG.als>
 ```
 You should see output similar to:
 ```
@@ -310,11 +310,12 @@ pred Valid {
 
 ## Performance of Alloy in relation to CFG size (Claim 4)
 From now on, you will need to be executing commands inside the docker container that we have provided. To get a shell in the container, run:
+
 ```
 sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 ```
 
-[TODO] Take text from below about generating examples on command line and in bulk, and then extend it with performance stuff.
+
 ### Generating examples in bulk
 
 By changing the value of `Diter` to `true`, the analyser will iteratively generate all possible instances of the specification (saved as XML files); in this case timeout will come in handy allowing you to run the command with a time limit as follows: 
@@ -330,7 +331,19 @@ where 'duration' can be a positive integer or a floating-point number, followed 
 * d - days
 
 When no unit is used, it defaults to seconds. If the duration is set to zero, the associated timeout is disabled.
+
+To reproduce the results in Table 3 in the paper, run the following command to generate valid instances of the model for 8, 10, 12 and 14 blocks by changing the value of `Dcmd` to 0, 1, 2 and 3, respectively.
+
+```
+timeout 4h java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/alloy/model/StructuredDominanceCFG.als>
+```
+
+By setting the `Dcmd` to 4 in the command above, running it will generate invalid instances of the model of size 8 blocks.
+
+
+<!---
 Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., for 20 seconds (using MiniSat as SAT solver), it generated 796 examples of 8 blocks; took 1,91s to translate the model into a Boolean formula whose satisfying assignments correspond to instances in the model; and the rest of the time was used by the SAT solver to solve the Boolean formula for all the instances. Recall that the scope (8) that bounds the size of the domains is defined in the `run`-command in the model file. The scope can be modified within reasonable limits; the larger the scope, the larger the search space and the slower the analysis will become (even intractable).
+-->
  
 
 ## The alloy-to-spirv tool (Claim 5)
