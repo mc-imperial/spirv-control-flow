@@ -342,12 +342,11 @@ where 'duration' can be a positive integer or a floating-point number, followed 
 
 When no unit is used, it defaults to seconds. If the duration is set to zero, the associated timeout is disabled.
 
-To reproduce the results in Table 3 in the paper, run the following command to generate valid instances of the model for 8, 10, 12 and 14 blocks by changing the value of `Dcmd` to 0, 1, 2 and 3, respectively.
-
+To reproduce the results in Table 3 in the paper, run the following command to generate valid instances of the model for 8, 10, 12 and 14 blocks by changing the value of `Dcmd` to 0, 1, 2 and 3, respectively. The timeout is 4 hours, so running this 4 times should take a total of 16 hours to run.
 ```
-timeout 4h java -classpath </path/to/alloystar> -Xmx3g -Djava.library.path=</path/to/alloystar/processor_info> -Dout=</path/where/xml/output/is/written/to> -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy </path/to/alloy/model/StructuredDominanceCFG.als>
+mkdir -p /data/git/spirv-control-flow/test_cases/alloy/xml
+timeout 4h java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=/data/git/spirv-control-flow/test_cases/alloy/xml -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=true  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
 ```
-
 By setting the `Dcmd` to 4 in the command above, running it will generate invalid instances of the model of size 8 blocks.
 
 
