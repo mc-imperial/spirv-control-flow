@@ -778,11 +778,11 @@ This output indicates a miscompilation bug. In other words, the compiler in the 
 
 ### Test Sets:
 Below, we list all of the test sets used in the paper. For the purpose of checking this example, you only need to download `Tests-Basic-Alloy.tar.gz`. You can download and run the other test sets, but be warned that some are quite large.
-1. Tests-Basic-CTS.tar.gz: The "Basic CTS" set (Table 1)
-2. Tests-Basic-Alloy.tar.gz: The "Basic Alloy" set (Table 1)
-3. Tests-Phi-CTS.tar.gz: The "Phi CTS" set (Table 1)
-4. Tests-Phi-Alloy.tar.gz: The "Phi Alloy" set (Table 1)
-5. Tests-Throughput.tar.gz: The tests used for throughput testing (Table 3). Warning, this will take somewhere between 10 and 39 hours to run.
+1. `Tests-Basic-CTS.tar.gz`: The "Basic CTS" set (Table 1)
+2. `Tests-Basic-Alloy.tar.gz`: The "Basic Alloy" set (Table 1)
+3. `Tests-Phi-CTS.tar.gz`: The "Phi CTS" set (Table 1)
+4. `Tests-Phi-Alloy.tar.gz`: The "Phi Alloy" set (Table 1)
+5. `Tests-Throughput.tar.gz`: The tests used for throughput testing (Table 3). Warning, this will take somewhere between 10 and 39 hours to run.
 
 The test sets above can all be downloaded and copied to the docker container. To copy them, run the following:
 ```
