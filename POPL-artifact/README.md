@@ -125,7 +125,16 @@ Summary: 0 pass, 0 fail
 
 4. Check Python works:` python3 -V` should output ` Python 3.8.10`
 
-5. Check that Alloy* works:
+5. Copy the Alloy model into the Docker container. First, get the container ID:
+```
+sudo docker ps
+```
+You should see a CONTAINER ID column - this is the ID you need. Then, download the `StructuredDominanceCFG.als` and run:
+```
+docker cp /path/to/StructuredDominanceCFG.als <CONTAINER_ID>:/data/git/spirv-control-flow/AlloyModel/StructuredDominanceCFG.als
+```
+
+6. Check that Alloy* works:
 ```
 cd /data/git/spirv-control-flow
 mkdir -p fleshing/test_sets/alloy/xml
@@ -139,7 +148,7 @@ Solving took 3.63s.
 11:44:26: Solution saved to fleshing/test_sets/alloy/xml/test_0.xml.
 ```
 
-To exit the container, type `exit`.
+We advise you to leave the container runnning, as you will need to re-copy the Alloy model if you exit and restart the container. If you still wish to stop the container, type `exit`.
 
 ## The updated SPIR-V specification (Claim 1)
 
@@ -315,6 +324,7 @@ From now on, you will need to be executing commands inside the docker container 
 sudo docker run -it --entrypoint /bin/bash popl-artifact-final
 ```
 
+Ensure that you have copied the Alloy model into the docker container as instructed in the setup instructions. If you have exited the container since following those instructions, you will need to copy the Alloy model again.
 
 ### Generating examples in bulk
 
