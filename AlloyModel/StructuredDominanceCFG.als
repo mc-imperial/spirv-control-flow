@@ -797,7 +797,7 @@ pred OrderOfOpSwitchTargetOperands
 														( some t1 <:branchSet:> T2 ) ||
 																							   (
 																									(some t1 <:branchSet:> default) and 
-																									 no  ((tail.elems)&default)   and
+																									 no  ((tail.elems)&default)     and
 																									(some caseConstruct[default]<:branchSet:>T2)
 																								)
 														)
@@ -890,7 +890,7 @@ pred ExitingTheConstruct
 						       | 
 
 							    	 (
-										 b in a.branchSet 						and 
+										 b in a.branchSet 					and 
 										 some headOfInnermostConst_a		and   --i.e., a is nested at some construct
 										 b not in innermostConstruct_a 	and   --i.e., b is outside the innermost of a
 										 (
@@ -1051,4 +1051,11 @@ pred MoreInteresting
 	all l: LoopHeader | l not in l.continue.branchSet
 }
 
-run { Valid && Vibrant && MoreInteresting && #LoopHeader=1 && #(SelectionHeader-SwitchBlock)=1 && #SwitchBlock=1 } for exactly 8 Block
+-- these four commands will generate valid instances of the model
+run {  Valid && Vibrant && MoreInteresting  && Block = StructurallyReachableBlock } for exactly 8 Block 
+run {  Valid && Vibrant && MoreInteresting  && Block = StructurallyReachableBlock } for exactly 10 Block 
+run {  Valid && Vibrant && MoreInteresting  && Block = StructurallyReachableBlock } for exactly 12 Block 
+run {  Valid && Vibrant && MoreInteresting  && Block = StructurallyReachableBlock } for exactly 14 Block 
+
+-- the following command will generate invalid instances of the model that violate one of the constraint
+run { UniqueMergeBlock && HeaderBlockStrictlyStructurallyDominatesItsMergeBlock && not BackEdgesBranchToLoopHeader && OneBackEdgeBranchingToLoopHeader && LoopHeaderStructurallyDominatesContinueTarget && ContinueTargetStructurallyDominatesBackEdge && BackEdgeStructurallyPostDominatesContinueTarget && not ConstructContainsAnotherHeader && ValidBreakBlock && ValidContinueBlock && ValidBranchToOuterOpSwitchMerge && InvalidBranchToOuterOpSwitchMerge && NobranchBetweenCaseConstructs && BranchesBetweenConstructs && OpSwitchBlockDominatesAllItsCases && AtMostOneBranchToAnotherCaseConstruct && CaseConstructBranchedToByAtMostOneOther && OrderOfOpSwitchTargetOperands && EntryBlockIsNotTargeted && OpLoopMergeSecondToLast && OpSelectionMergeSecondToLast && OutDegree && MultipleOutEdges && ExitingTheConstruct && StructurallyAcyclic && BranchToContinue &&  Vibrant && MoreInteresting && Block = StructurallyReachableBlock  } for exactly 8 Block
