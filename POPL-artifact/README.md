@@ -347,39 +347,66 @@ Running Alloy Analyzer in the terminal on a MacBook Pro i7-1068NG7, for e.g., fo
  
 
 ## The alloy-to-spirv tool (Claim 5)
-The alloy-to-spirv tool converts a CFG produced by Alloy into a skeleton SPIR-V program. Let's start by generating a CFG with Alloy. Run all commands in this section within  the docker container. 
+The alloy-to-spirv tool converts a CFG produced by Alloy into a skeleton SPIR-V program. Let's start by generating a valid CFG with Alloy. Run all commands in this section within the docker container. 
 
 ```
 cd /data/git/spirv-control-flow
-java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=alloy-to-spirv -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
+mkdir -p /data/git/spirv-control-flow/alloy-to-spirv/valid
+java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=alloy-to-spirv/valid -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
 ```
 This should produce output similar to the following:
 ```
 Running Alloy, using MiniSat on command 0.
 20:35:16: Translation took 2.23s (224521 vars, 432 primary vars, 737481 clauses).
 Solving took 3.86s.
-20:35:20: Solution saved to alloy-to-spirv/test_0.xml.
+20:35:20: Solution saved to alloy-to-spirv/valid/test_0.xml.
 ```
-This output tells us that the CFG was saved to the file `alloy-to-spirv/test_0.xml`. Let's use alloy-to-spirv to convert it into a SPIR-V skeleton program and save it to `alloy-to-spirv/example.asm`:
+This output tells us that the CFG was saved to the file `alloy-to-spirv/valid/test_0.xml`. Let's use alloy-to-spirv to convert it into a SPIR-V skeleton program and save it to `alloy-to-spirv/valid/example.asm`:
 ```
-python3 alloy-to-spirv/convert.py alloy-to-spirv/test_0.xml > alloy-to-spirv/example.asm
+python3 alloy-to-spirv/convert.py alloy-to-spirv/valid/test_0.xml > alloy-to-spirv/valid/example.asm
 ```
 
 ### Validating examples with the Khronos official validator. 
 Once we have a skeleton SPIR-V program, we can assemble it using `spirv-as` and check its validity using `spirv-val`. To assemble it into a binary `.spv` program:
 ```
-spirv-as --target-env spv1.3 alloy-to-spirv/example.asm -o alloy-to-spirv/example.spv --preserve-numeric-ids
+spirv-as --target-env spv1.3 alloy-to-spirv/valid/example.asm -o alloy-to-spirv/valid/example.spv --preserve-numeric-ids
 ```
-The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val` can operate. To run the validator:
+The assembler, `spirv-as`, reads the assembly language text, and emits the binary form on which operates the validator `spirv-val` can operate. You should see a file `example.spv` in the `./alloy-to-spirv/valid` directory. To run the validator:
 ```
-spirv-val --target-env spv1.3 alloy-to-spirv/example.spv
+spirv-val --target-env spv1.3 alloy-to-spirv/valid/example.spv
 ```
-The validator agrees if it does not print any output indicating an error. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found. 
+The validator agrees if it does not print any output indicating an error. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found.
+
+### Invalid Example
+Let's see what happens when an invalid example is generated. We can ask Alloy to generate an invalid example by invoking a different `run` comand within our model:
+```
+mkdir -p /data/git/spirv-control-flow/alloy-to-spirv/invalid
+java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=alloy-to-spirv/invalid -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=4 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
+```
+You should see output similar to:
+```
+Running Alloy, using MiniSat on command 4.
+10:50:46: Translation took 2.19s (216085 vars, 440 primary vars, 710094 clauses).
+Solving took 7.54s.
+10:50:53: Solution saved to alloy-to-spirv/invalid/test_0.xml.
+```
+Let's now use the validator to confirm that this is invalid. If the validator claims that it is valid, it is likely that we have found a bug in the validator.
+```
+python3 alloy-to-spirv/convert.py alloy-to-spirv/invalid/test_0.xml > alloy-to-spirv/invalid/example.asm
+spirv-as --target-env spv1.3 alloy-to-spirv/invalid/example.asm -o alloy-to-spirv/invalid/example.spv --preserve-numeric-ids
+spirv-val --target-env spv1.3 alloy-to-spirv/invalid/example.spv
+```
+You should see that `spirv-val` complains that the example is not valid:
+```
+error: line 24: Back-edges (14[%14] -> 14[%14]) can only be formed between a block and a loop header.
+  %14 = OpLabel
+```
+Here, `spirv-val` is telling us that there is a back-edge to a block that is not a loop header, which is disallowed by the SPIR-V control flow rules.
 
 ## The spirv-to-alloy tool (Claim 6)
 In addition to the alloy-to-spirv tool, we also have a spirv-to-alloy tool. This can convert SPIR-V binaries into `.als` (alloy) files that can be checked by our Alloy model. This means that we can validate the CFGs of real SPIR-V programs with our Alloy model.
 
-Let's use the SPIR-V binary produced by the `alloy-to-spirv` earlier (Claim 5). The spirv-to-alloy tool can be invoked as follows:
+Let's use the SPIR-V binaries produced by the `alloy-to-spirv` earlier (Claim 5). The spirv-to-alloy tool can be invoked as follows:
 ```
 Usage: ./spirv-to-alloy/build/src/spirv_to_alloy/spirv-to-alloy <spirv-binary> <function-id> <alloy-module-name> [skip-validation]
 ```
@@ -389,11 +416,13 @@ In SPIR-V, most instructions produce ids and this includes function declarations
 ```
 which means that the function id we need is 7. The alloy module name is not required for this part, so you can use `dummy/name`. Putting it together, run:
 ```
-mkdir -p out
-./spirv-to-alloy/build/src/spirv_to_alloy/spirv-to-alloy alloy-to-spirv/example.spv 7 dummy/name > out/example.als
+mkdir -p out/valid out/invalid
+./spirv-to-alloy/build/src/spirv_to_alloy/spirv-to-alloy alloy-to-spirv/valid/example.spv 7 dummy/name > out/valid/example.als
+./spirv-to-alloy/build/src/spirv_to_alloy/spirv-to-alloy alloy-to-spirv/invalid/example.spv 7 dummy/name > out/invalid/example.als
 ```
-This will create an `example.als` file containing an Alloy representation of the CFG from the SPIR-V binary. To check this against our model, run Alloy:
+The above commands invoke `spirv-to-alloy` twice, once for converting the valid SPIR-V example to the alloy representation and once for converting the invalid example. There should now be an `example.als` file in both the `out/valid` and `out/invalid` directories. Each contains the Alloy representation of the CFG from the respective SPIR-V binary. To check the valid example against our model, run Alloy:
 ```
+cp out/valid/example.als out/example.als
 java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=out -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy out/example.als 
 ```
 This should produce output similar to:
@@ -403,7 +432,23 @@ Running Alloy, using MiniSat on command 0.
 Solving took 0.12s.
 21:12:42: Solution saved to out/test_0.xml.
 ```
-This shows that Alloy successfully validated the CFG against our model, and saved the CFG in `out/test_0.xml` ready for fleshing, which we will describe in Claim 8. We have now come full circle - in Claim 5, we generated a SPIR-V skeleton program from a CFG generated by Alloy, and now we have managed to convert that skeleton SPIR-V program back into its Alloy representation and check that it is still a valid CFG. 
+This shows that Alloy successfully validated the CFG against our model, and saved the CFG in `out/test_0.xml` ready for fleshing, which we will describe in Claim 8. 
+
+To check the invalid example against our model, run:
+```
+cp out/invalid/example.als out/example.als
+java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=out -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=0 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy out/example.als 
+```
+You should see something similar to:
+```
+Running Alloy, using MiniSat on command 0.
+11:09:29: Translation took 2.11s (225612 vars, 504 primary vars, 745627 clauses).
+Solving took 0.08s.
+No solution found.
+```
+The important part of this output is `No solution found`, which means that the Alloy model rejects this as an invalid CFG.
+
+We have now come full circle - in Claim 5, we generated both a valid and invalid SPIR-V skeleton program from valid and invalid CFGs generated by Alloy respectively. Now we have managed to convert those skeleton SPIR-V programs back into their Alloy representation and check that the valid one is still accepted as a valid CFG and the invalid one is rejected.
 
 ## Converting Vulkan CTS test cases to Alloy using spirv-to-alloy (Claim 7)
 One way of generating CFGs is to scrape them from the Vulkan conformance test suite (CTS). Running the commands below will scrape the Vulkan CTS and output Alloy (.als) files to the VulkanCTS directory. Each als file represents one scraped CFG.
