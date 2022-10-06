@@ -155,13 +155,10 @@ In Section 4.3 of the paper, under "Unambiguous exit rules", we claim that "we w
 
 ## Our Alloy model and its relationship to the specification (Claim 2)
 
-[TODO] Ally: once Vasilis has revised this, go through and give page numbers in the SPIR-V PDFs.
-
-
 The file `StructuredDominanceCFG.als` in the root of the artifact contains the Alloy model.
-To give an insight into how the model’s axioms encode the SPIR-V spec’s ([SPIR-V 1.6r2](https://www.khronos.org/registry/SPIR-V/specs/unified1/SPIRV.html)) rules, we provide below few of our model’s 26 predicates that capture CFG validity constraints, all of which must hold for a CFG to be deemed valid. 
+To give an insight into how the model’s axioms encode the updated SPIR-V spec’s (`SPIRV-1.6r2.pdf`) rules, we provide below few of our model’s 26 predicates that capture CFG validity constraints, all of which must hold for a CFG to be deemed valid.
 
-
+For convenience, we provide hyperlinks to relevant parts of the online version of the SPIR-V specification. This is in sync with `SPIRV-1.6r2.pdf` at time of writing, but this may change in the future as SPIR-V furtehr evolves. `SPIRV-1.6r2.pdf` is the definitive document to which this artifact refers.
 
 ### Predicate 1 [line 586 in the model file]
 
