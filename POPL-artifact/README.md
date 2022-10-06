@@ -148,7 +148,7 @@ Solving took 3.63s.
 11:44:26: Solution saved to fleshing/test_sets/alloy/xml/test_0.xml.
 ```
 
-We advise you to leave the container runnning, as you will need to re-copy the Alloy model if you exit and restart the container. If you still wish to stop the container, type `exit`.
+We advise you to leave the container running, as you will need to re-copy the Alloy model if you exit and restart the container. If you still wish to stop the container, type `exit`.
 
 ## The updated SPIR-V specification (Claim 1)
 
@@ -387,7 +387,7 @@ spirv-val --target-env spv1.3 alloy-to-spirv/valid/example.spv
 The validator agrees if it does not print any output indicating an error. The validator is expected to agree with the Alloy model (i.e., deems the example as valid), otherwise a new bug has been found.
 
 ### Invalid Example
-Let's see what happens when an invalid example is generated. We can ask Alloy to generate an invalid example by invoking a different `run` comand within our model:
+Let's see what happens when an invalid example is generated. We can ask Alloy to generate an invalid example by invoking a different `run` command within our model:
 ```
 mkdir -p /data/git/spirv-control-flow/alloy-to-spirv/invalid
 java -classpath /data/git/alloystar -Xmx3g -Djava.library.path=/data/git/alloystar/amd64-linux -Dout=alloy-to-spirv/invalid -Dquiet=false -Dsolver=minisat -Dhigherorder=true -Dcmd=4 -Diter=false  edu/mit/csail/sdg/alloy4whole/RunAlloy AlloyModel/StructuredDominanceCFG.als
