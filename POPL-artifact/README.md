@@ -62,22 +62,19 @@ Before going further, please try the following steps and check that they work. A
 
 Validating some of our claims require using the Alloy Analyzer GUI, which you will need to download.
 
-#### Check that the Analyzer installs
+0. Intall the Analyzer. On Linux, download the `org.alloytools.alloy.dist.jar` file provided with the artifact, and either double-click to open is, or run the following command from the console:
 
-On Linux, download the `org.alloytools.alloy.dist.jar` file provided with the artifact, and either double-click to open is, or run the following command from the console:
+```
+java -jar org.alloytools.alloy.dist.jar
+```
 
-`java -jar org.alloytools.alloy.dist.jar`
+  On Mac OS X, download and open the `alloy.dmg` file available as part of the artifact. 
 
-If on Mac OS X, download and open the `alloy.dmg` file available as part of the artifact. 
+1. Load the Alloy model provided with the artifact by selecting `File` > `Open` in top toolbar, and in the dialog that opens, browse to and select the `StructuredDominanceCFG.als`-file.
 
-#### Check that the analyser works
-
-Load the Alloy model provided with the artifact by selecting `File` > `Open` in top toolbar, and in the dialog that opens, browse to and select the `StructuredDominanceCFG.als`-file.
-Click `Execute` in top toolbar and select `Run run$1 for exactly 8 Block`. Alloy Analyser will look for a matching example of the spec and will respond with “Instance found”. Click the `Show` button from the toolbar, and a new window will open up (the Alloy Visualizer) with a solution diagram similar to this:
+2. Click `Execute` in top toolbar and select `Run run$1 for exactly 8 Block`. Alloy Analyser will look for a matching example of the spec and will respond with “Instance found”. Click the `Show` button from the toolbar, and a new window will open up (the Alloy Visualizer) with a solution diagram similar to this:
 
 ![](https://i.imgur.com/vCYUBWc.png)
-
-Export the visualised solution to an XML by going to `File` > `Export To` > `XML...` from the Vizualiser's Menu Bar.
 
 ### Download and check that the Docker image works
 We provide a docker image that has all the necessary software pre-installed. This includes the tools produced by us for the paper and this artifact. If you would like to verify that this code builds from scratch, instructions for doing this can be found in the README of the repository provided in the docker image (/data/git/spirv-control-flow/README.md). Most of the code is in Python, so you will only need to build the spirv-to-alloy tool. 
@@ -269,7 +266,7 @@ Once the auxiliary contraints are added, it's time to generate valid instances o
 ```
 run { Valid && Vibrant && MoreInteresting && #LoopHeader=1 && #(SelectionHeader-SwitchBlock)=1 && #SwitchBlock=1 } for exactly 8 Block
 ```
-If an example is found, it can be visualised by clicking on the `Show` button (see below instance). The visualisations then can be written to an XML file (`File`/`Export to`). 
+If an example is found, it can be visualised by clicking on the `Show` button (see below instance). 
 
 ![](https://i.imgur.com/LOWpPLA.png)
 
