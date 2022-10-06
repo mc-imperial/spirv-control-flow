@@ -489,7 +489,7 @@ Once the process is complete, there should be directories containing xml files i
 2. Fleshing with op-phi instructions enabled
 3. Fleshing multiple threads that follow independent paths
 
-For the purpose of this explanation, ensure you are in the `/data/git/spirv-control/flow` directory. You should already have completed the Claim 7 section which generated CFG skeletons from the Vulkan CTS. We'll use the CFG in `./fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml`.
+For the purpose of this explanation, ensure you are in the `/data/git/spirv-control-flow` directory. You should already have completed the Claim 7 section which generated CFG skeletons from the Vulkan CTS. We'll use the CFG in `./fleshing/test_sets/vulkan_cts/xml/s005/test_0.xml`.
 
 ### Fleshing a single path
 To produce a basic fleshed test case that will have a single thread following a predetermined path, run:
