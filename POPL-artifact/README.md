@@ -146,11 +146,15 @@ To exit the container, type `exit`.
 
 ## The updated SPIR-V specification (Claim 1)
 
-In Sections 2 and 3 of the paper we quote from Version 1.6 revision 1 of the SPIR-V specification when discussing problematic definitions and rules. These quotations can be cross-checked against a copy of that specification version, **TODO Zenodo link**, provided with the artifact.
+In Sections 2 and 3 of the paper we quote from Version 1.6 revision 1 of the SPIR-V specification when discussing problematic definitions and rules. These quotations can be cross-checked against a copy of that specification version, provided as `SPIRV-1.6r1.pdf`.
 
-In Section 4 of the paper we claim that our revised definitions and rules have been incorporated into a more recent revision of the SPIR-V specification. This can be checked against Version 1.6 revision 2 of the specification, **TODO Zenodo link**, provided with the artifact.
+In Section 4.2 of the paper we claim that our revised definitions and rules have been incorporated into a more recent revision of the SPIR-V specification. This can be checked against Version 1.6 revision 2 of the specification, provided as `SPIRV-1.6r2.pdf`.
 
-[TODO] Ally to be a bit more concrete.
+Definitions related to structural reachability and structural dominance are on pages 16-17 of `SPIRV-1.6r2.pdf`. These can be compared to pages 15-16 of `SPIRV-1.6r1.pdf`, before our changes, which features dominance but not structural dominance. You can check that our claims in Section 4.2 of the paper about certain definitions being added to the spec are indeed reflected in the difference between these specification versions.
+
+We also significantly reworked the definitions of structured control flow constructs and the rules associated with them. To see this, look at the differences between Section 2.11 of each version of the specification - pages 24-25 of `SPIRV-1.6r1.pdf` vs. pages 25-27 of `SPIRV-1.6r2.pdf`. You can check that the diffs we present in Section 4.2 of the paper are indeed reflected in the differences between these specification versions.
+
+In Section 4.3 of the paper, under "Unambiguous exit rules", we claim that "we were able to articulate a precise set of rules dictating when it is acceptable for a branch edge to leave a construct, replacing the problematic existing exit rules that we briefly discussed in Section 3.6". Our precise rules are in Section 2.11.3, "Rules for Structured Control-flow Constructs", of `SPIRV-1.6r2.pdf`. You can check that the three example rules given in the paper come from this list of rules. You can also check that previously problematic rules, such as "a break block is valid only for the innermost loop it is nested inside of" (page 25 of `SPIRV-1.6r1.pdf`, which we discuss in Section 3.6 of the paper) are not present in `SPIRV-1.6r2.pdf`.
 
 ## Our Alloy model and its relationship to the specification (Claim 2)
 
