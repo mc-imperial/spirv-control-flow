@@ -37,17 +37,17 @@ generates..
 #!amber
 
 SHADER compute compute_shader SPIRV-ASM
+; Follow the path(s):
+; unique path #0: 8 -> 9 -> <10> -> <17> -> 18 -> 19
 
-; Follow the path:
-; 8 -> 9 -> <12> -> <13> -> edge_6 -> <16> -> 23 -> <22> -> 25 -> 24 -> 14 -> 11 -> 9 -> <12> -> <10> -> 19 -> 17
 ;
-; 5 CFG nodes have OpBranchConditional or OpSwitch as their terminators (denoted <n>): 10, 12, 13, 16 and 22.
+; 2 CFG nodes have OpBranchConditional or OpSwitch as their terminators (denoted <n>): 10 and 17.
 ;
-; To follow this path, we need to make these decisions each time we reach 10, 12, 13, 16 or 22.
-; This path was generated with the seed 6179875240267643350 and has length 16.
+; To follow these paths, we need to make decisions each time we reach 10 or 17.
+; These paths were generated with the seed 6179875240267643350 and have lengths ranging from 6 to 6.
 ;
-; We equip the shader with 5+1 storage buffers:
-; - An input storage buffer with the directions for each node 10, 12, 13, 16 or 22
+; We equip the shader with 2+1 storage buffers:
+; - An input storage buffer with the directions for each node 10 or 17
 ; - An output storage buffer that records the blocks that are executed
 
 ; SPIR-V
@@ -55,23 +55,17 @@ SHADER compute compute_shader SPIRV-ASM
 ; Generator: Khronos Glslang Reference Front End; 8
 ; Bound: 15
 ; Schema: 0
-
                OpCapability Shader
                OpMemoryModel Logical GLSL450
-               OpEntryPoint GLCompute %7 "main"
+               OpEntryPoint GLCompute %7 "main" %local_invocation_idx_var %workgroup_id_var
                OpExecutionMode %7 LocalSize 1 1 1
                
                ; Below, we declare various types and variables for storage buffers.
                ; These decorations tell SPIR-V that the types and variables relate to storage buffers
 
-
                OpDecorate %size_1_struct_type BufferBlock
                OpMemberDecorate %size_1_struct_type 0 Offset 0
                OpDecorate %size_1_array_type ArrayStride 4
-
-               OpDecorate %size_2_struct_type BufferBlock
-               OpMemberDecorate %size_2_struct_type 0 Offset 0
-               OpDecorate %size_2_array_type ArrayStride 4
 
                OpDecorate %output_struct_type BufferBlock
                OpMemberDecorate %output_struct_type 0 Offset 0
@@ -80,21 +74,23 @@ SHADER compute compute_shader SPIRV-ASM
                OpDecorate %directions_10_variable DescriptorSet 0
                OpDecorate %directions_10_variable Binding 0
 
-               OpDecorate %directions_12_variable DescriptorSet 0
-               OpDecorate %directions_12_variable Binding 1
+               OpDecorate %directions_10_index_variable DescriptorSet 0
+               OpDecorate %directions_10_index_variable Binding 1
 
-               OpDecorate %directions_13_variable DescriptorSet 0
-               OpDecorate %directions_13_variable Binding 2
+               OpDecorate %directions_17_variable DescriptorSet 0
+               OpDecorate %directions_17_variable Binding 2
 
-               OpDecorate %directions_16_variable DescriptorSet 0
-               OpDecorate %directions_16_variable Binding 3
-
-               OpDecorate %directions_22_variable DescriptorSet 0
-               OpDecorate %directions_22_variable Binding 4
+               OpDecorate %directions_17_index_variable DescriptorSet 0
+               OpDecorate %directions_17_index_variable Binding 3
 
                OpDecorate %output_variable DescriptorSet 0
-               OpDecorate %output_variable Binding 5
+               OpDecorate %output_variable Binding 4
 
+               OpDecorate %output_index_variable DescriptorSet 0
+               OpDecorate %output_index_variable Binding 5
+
+               OpDecorate %local_invocation_idx_var BuiltIn LocalInvocationIndex
+               OpDecorate %workgroup_id_var BuiltIn WorkgroupId
 
           %1 = OpTypeVoid
           %2 = OpTypeFunction %1
@@ -102,70 +98,89 @@ SHADER compute compute_shader SPIRV-ASM
           %4 = OpTypeInt 32 0
           %5 = OpConstantTrue %3
           %6 = OpConstant %4 0
-          
 
-               %constant_0 = OpConstant %4 0
-               %constant_1 = OpConstant %4 1
-               %constant_2 = OpConstant %4 2
-               %constant_6 = OpConstant %4 6
-               %constant_8 = OpConstant %4 8
-               %constant_9 = OpConstant %4 9
+               %dummy_val = OpConstant %4 666
                %constant_10 = OpConstant %4 10
-               %constant_11 = OpConstant %4 11
-               %constant_12 = OpConstant %4 12
-               %constant_13 = OpConstant %4 13
-               %constant_14 = OpConstant %4 14
-               %constant_15 = OpConstant %4 15
                %constant_16 = OpConstant %4 16
                %constant_17 = OpConstant %4 17
-               %constant_18 = OpConstant %4 18
-               %constant_19 = OpConstant %4 19
-               %constant_20 = OpConstant %4 20
-               %constant_21 = OpConstant %4 21
-               %constant_22 = OpConstant %4 22
-               %constant_23 = OpConstant %4 23
+               %constant_14 = OpConstant %4 14
                %constant_24 = OpConstant %4 24
+               %constant_2 = OpConstant %4 2
+               %constant_15 = OpConstant %4 15
+               %constant_12 = OpConstant %4 12
+               %constant_19 = OpConstant %4 19
+               %constant_21 = OpConstant %4 21
+               %constant_23 = OpConstant %4 23
                %constant_25 = OpConstant %4 25
+               %constant_8 = OpConstant %4 8
+               %constant_7 = OpConstant %4 7
+               %constant_11 = OpConstant %4 11
+               %constant_22 = OpConstant %4 22
+               %constant_0 = OpConstant %4 0
+               %constant_9 = OpConstant %4 9
+               %constant_1 = OpConstant %4 1
+               %constant_18 = OpConstant %4 18
+               %constant_20 = OpConstant %4 20
+               %constant_13 = OpConstant %4 13
 
-
-               ; Declaration of storage buffers for the 5 directions and the output
-               
+               ; Declaration of storage buffers for the 2 directions and the output
 
                %size_1_array_type = OpTypeArray %4 %constant_1
                %size_1_struct_type = OpTypeStruct %size_1_array_type
                %size_1_pointer_type = OpTypePointer Uniform %size_1_struct_type
-               %directions_16_variable = OpVariable %size_1_pointer_type Uniform
+
                %directions_10_variable = OpVariable %size_1_pointer_type Uniform
-               %directions_13_variable = OpVariable %size_1_pointer_type Uniform
-               %directions_22_variable = OpVariable %size_1_pointer_type Uniform
+               %directions_10_index_variable = OpVariable %size_1_pointer_type Uniform
+               %directions_17_variable = OpVariable %size_1_pointer_type Uniform
+               %directions_17_index_variable = OpVariable %size_1_pointer_type Uniform
 
-               %size_2_array_type = OpTypeArray %4 %constant_2
-               %size_2_struct_type = OpTypeStruct %size_2_array_type
-               %size_2_pointer_type = OpTypePointer Uniform %size_2_struct_type
-               %directions_12_variable = OpVariable %size_2_pointer_type Uniform
-
-               %output_array_type = OpTypeArray %4 %constant_16
+               %output_array_type = OpTypeArray %4 %constant_7
                %output_struct_type = OpTypeStruct %output_array_type
                %output_pointer_type = OpTypePointer Uniform %output_struct_type
                %output_variable = OpVariable %output_pointer_type Uniform
+               %output_index_variable = OpVariable %size_1_pointer_type Uniform
 
-               ; Pointer type for declaring local variables of int type
                %local_int_ptr = OpTypePointer Function %4
-
-               ; Pointer type for integer data in a storage buffer
                %storage_buffer_int_ptr = OpTypePointer Uniform %4
 
+               %input_int_ptr = OpTypePointer Input %4
+               %local_invocation_idx_var = OpVariable %input_int_ptr Input
+               %vec_3_input = OpTypeVector %4 3
+               %workgroup_ptr = OpTypePointer Input %vec_3_input 
+               %workgroup_id_var = OpVariable %workgroup_ptr Input
 
           %7 = OpFunction %1 None %2
 
-          %8 = OpLabel ; StructurallyReachableBlock$11
+          %8 = OpLabel ; Block$11
                %output_index = OpVariable %local_int_ptr Function %constant_0
                %directions_10_index = OpVariable %local_int_ptr Function %constant_0
-               %directions_12_index = OpVariable %local_int_ptr Function %constant_0
-               %directions_13_index = OpVariable %local_int_ptr Function %constant_0
-               %directions_16_index = OpVariable %local_int_ptr Function %constant_0
-               %directions_22_index = OpVariable %local_int_ptr Function %constant_0
+               %directions_17_index = OpVariable %local_int_ptr Function %constant_0
 
+               %local_invocation_idx = OpLoad %4 %local_invocation_idx_var
+               %x_wg_dim_ptr = OpAccessChain %input_int_ptr %workgroup_id_var %constant_0
+               %y_wg_dim_ptr = OpAccessChain %input_int_ptr %workgroup_id_var %constant_1
+               %z_wg_dim_ptr = OpAccessChain %input_int_ptr %workgroup_id_var %constant_2
+               %x_wg_dim = OpLoad %4 %x_wg_dim_ptr
+               %y_wg_dim = OpLoad %4 %y_wg_dim_ptr
+               %z_wg_dim = OpLoad %4 %z_wg_dim_ptr
+               %z_idx_component = OpIMul %4 %z_wg_dim %constant_1
+               %y_idx_component = OpIMul %4 %y_wg_dim %constant_1
+               %yz_idx_component = OpIAdd %4 %y_idx_component %z_idx_component
+               %workgroup_idx = OpIAdd %4 %yz_idx_component %x_wg_dim
+
+               %workgroup_offset = OpIMul %4 %workgroup_idx %constant_1
+               %thread_index_offset = OpIAdd %4 %workgroup_offset %local_invocation_idx
+
+               %directions_10_start_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_10_index_variable %constant_0 %thread_index_offset
+               %directions_10_offset = OpLoad %4 %directions_10_start_idx_ptr
+               %directions_17_start_idx_ptr = OpAccessChain %storage_buffer_int_ptr %directions_17_index_variable %constant_0 %thread_index_offset
+               %directions_17_offset = OpLoad %4 %directions_17_start_idx_ptr
+               %output_start_idx_ptr = OpAccessChain %storage_buffer_int_ptr %output_index_variable %constant_0 %thread_index_offset
+               %output_offset = OpLoad %4 %output_start_idx_ptr
+
+               OpStore %directions_10_index %directions_10_offset
+               OpStore %directions_17_index %directions_17_offset
+               OpStore %output_index %output_offset
 
    %temp_8_0 = OpLoad %4 %output_index
    %temp_8_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_8_0
@@ -181,41 +196,11 @@ SHADER compute compute_shader SPIRV-ASM
                OpStore %temp_9_1 %constant_9
    %temp_9_2 = OpIAdd %4 %temp_9_0 %constant_1
                OpStore %output_index %temp_9_2
-               OpLoopMerge %10 %11 None
-               OpBranch %12
+               OpLoopMerge %17 %16 None
+               OpBranch %10
 
 
-         %12 = OpLabel ; StructurallyReachableBlock$3
-  %temp_12_0 = OpLoad %4 %output_index
-  %temp_12_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_12_0
-               OpStore %temp_12_1 %constant_12
-  %temp_12_2 = OpIAdd %4 %temp_12_0 %constant_1
-               OpStore %output_index %temp_12_2
-  %temp_12_3 = OpLoad %4 %directions_12_index
-  %temp_12_4 = OpAccessChain %storage_buffer_int_ptr %directions_12_variable %constant_0 %temp_12_3
-  %temp_12_5 = OpLoad %4 %temp_12_4
-  %temp_12_6 = OpIEqual %3 %temp_12_5 %constant_1
-  %temp_12_7 = OpIAdd %4 %temp_12_3 %constant_1
-               OpStore %directions_12_index %temp_12_7
-               OpBranchConditional %temp_12_6 %13 %10
-
-
-         %13 = OpLabel ; SelectionHeader$2
-  %temp_13_0 = OpLoad %4 %output_index
-  %temp_13_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_13_0
-               OpStore %temp_13_1 %constant_13
-  %temp_13_2 = OpIAdd %4 %temp_13_0 %constant_1
-               OpStore %output_index %temp_13_2
-  %temp_13_3 = OpLoad %4 %directions_13_index
-  %temp_13_4 = OpAccessChain %storage_buffer_int_ptr %directions_13_variable %constant_0 %temp_13_3
-  %temp_13_5 = OpLoad %4 %temp_13_4
-  %temp_13_7 = OpIAdd %4 %temp_13_3 %constant_1
-               OpStore %directions_13_index %temp_13_7
-               OpSelectionMerge %14 None
-               OpSwitch %temp_13_5 %15 1 %16 2 %16 3 %16 4 %16 5 %16 6 %16 7 %16 8 %16 9 %16 10 %16
-
-
-         %10 = OpLabel ; SelectionHeader$3
+         %10 = OpLabel ; Block$3
   %temp_10_0 = OpLoad %4 %output_index
   %temp_10_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_10_0
                OpStore %temp_10_1 %constant_10
@@ -227,153 +212,125 @@ SHADER compute compute_shader SPIRV-ASM
   %temp_10_6 = OpIEqual %3 %temp_10_5 %constant_1
   %temp_10_7 = OpIAdd %4 %temp_10_3 %constant_1
                OpStore %directions_10_index %temp_10_7
-               OpSelectionMerge %17 None
-               OpBranchConditional %temp_10_6 %18 %19
+               OpBranchConditional %temp_10_6 %11 %17
 
 
-         %15 = OpLabel ; SelectionHeader$1
-               OpSelectionMerge %20 None
-               OpBranchConditional %5 %21 %20
+         %11 = OpLabel ; SelectionHeader$2
+               OpSelectionMerge %15 None
+               OpSwitch %6 %23 1 %12 2 %12 3 %12 4 %12 5 %12 6 %12 7 %12 8 %12 9 %12 10 %12
 
 
-         %16 = OpLabel ; SelectionHeader$0
-  %temp_16_0 = OpLoad %4 %output_index
-  %temp_16_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_16_0
-               OpStore %temp_16_1 %constant_16
-  %temp_16_2 = OpIAdd %4 %temp_16_0 %constant_1
-               OpStore %output_index %temp_16_2
-  %temp_16_3 = OpLoad %4 %directions_16_index
-  %temp_16_4 = OpAccessChain %storage_buffer_int_ptr %directions_16_variable %constant_0 %temp_16_3
-  %temp_16_5 = OpLoad %4 %temp_16_4
-  %temp_16_6 = OpIEqual %3 %temp_16_5 %constant_1
-  %temp_16_7 = OpIAdd %4 %temp_16_3 %constant_1
-               OpStore %directions_16_index %temp_16_7
-               OpSelectionMerge %22 None
-               OpBranchConditional %temp_16_6 %23 %22
-
-
-         %18 = OpLabel ; StructurallyReachableBlock$6
-               OpBranch %17
-
-
-         %19 = OpLabel ; StructurallyReachableBlock$5
-  %temp_19_0 = OpLoad %4 %output_index
-  %temp_19_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_19_0
-               OpStore %temp_19_1 %constant_19
-  %temp_19_2 = OpIAdd %4 %temp_19_0 %constant_1
-               OpStore %output_index %temp_19_2
-               OpBranch %17
-
-
-         %21 = OpLabel ; StructurallyReachableBlock$2
-               OpBranch %20
-
-
-         %23 = OpLabel ; StructurallyReachableBlock$0
-  %temp_23_0 = OpLoad %4 %output_index
-  %temp_23_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_23_0
-               OpStore %temp_23_1 %constant_23
-  %temp_23_2 = OpIAdd %4 %temp_23_0 %constant_1
-               OpStore %output_index %temp_23_2
-               OpBranch %22
-
-
-         %17 = OpLabel ; StructurallyReachableBlock$4
+         %17 = OpLabel ; SelectionHeader$3
   %temp_17_0 = OpLoad %4 %output_index
   %temp_17_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_17_0
                OpStore %temp_17_1 %constant_17
   %temp_17_2 = OpIAdd %4 %temp_17_0 %constant_1
                OpStore %output_index %temp_17_2
-               OpReturn
+  %temp_17_3 = OpLoad %4 %directions_17_index
+  %temp_17_4 = OpAccessChain %storage_buffer_int_ptr %directions_17_variable %constant_0 %temp_17_3
+  %temp_17_5 = OpLoad %4 %temp_17_4
+  %temp_17_6 = OpIEqual %3 %temp_17_5 %constant_1
+  %temp_17_7 = OpIAdd %4 %temp_17_3 %constant_1
+               OpStore %directions_17_index %temp_17_7
+               OpSelectionMerge %19 None
+               OpBranchConditional %temp_17_6 %22 %18
 
 
-         %20 = OpLabel ; StructurallyReachableBlock$1
-               OpBranch %14
-
-
-         %22 = OpLabel ; SelectionHeader$4
-  %temp_22_0 = OpLoad %4 %output_index
-  %temp_22_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_22_0
-               OpStore %temp_22_1 %constant_22
-  %temp_22_2 = OpIAdd %4 %temp_22_0 %constant_1
-               OpStore %output_index %temp_22_2
-  %temp_22_3 = OpLoad %4 %directions_22_index
-  %temp_22_4 = OpAccessChain %storage_buffer_int_ptr %directions_22_variable %constant_0 %temp_22_3
-  %temp_22_5 = OpLoad %4 %temp_22_4
-  %temp_22_6 = OpIEqual %3 %temp_22_5 %constant_1
-  %temp_22_7 = OpIAdd %4 %temp_22_3 %constant_1
-               OpStore %directions_22_index %temp_22_7
+         %23 = OpLabel ; SelectionHeader$1
                OpSelectionMerge %24 None
-               OpBranchConditional %temp_22_6 %25 %24
+               OpBranchConditional %5 %25 %24
 
 
-         %25 = OpLabel ; StructurallyReachableBlock$10
-  %temp_25_0 = OpLoad %4 %output_index
-  %temp_25_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_25_0
-               OpStore %temp_25_1 %constant_25
-  %temp_25_2 = OpIAdd %4 %temp_25_0 %constant_1
-               OpStore %output_index %temp_25_2
+         %12 = OpLabel ; SelectionHeader$0
+               OpSelectionMerge %13 None
+               OpBranchConditional %5 %20 %13
+
+
+         %22 = OpLabel ; Block$6
+               OpBranch %19
+
+
+         %18 = OpLabel ; Block$5
+  %temp_18_0 = OpLoad %4 %output_index
+  %temp_18_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_18_0
+               OpStore %temp_18_1 %constant_18
+  %temp_18_2 = OpIAdd %4 %temp_18_0 %constant_1
+               OpStore %output_index %temp_18_2
+               OpBranch %19
+
+
+         %25 = OpLabel ; Block$2
                OpBranch %24
 
 
-         %24 = OpLabel ; StructurallyReachableBlock$9
-  %temp_24_0 = OpLoad %4 %output_index
-  %temp_24_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_24_0
-               OpStore %temp_24_1 %constant_24
-  %temp_24_2 = OpIAdd %4 %temp_24_0 %constant_1
-               OpStore %output_index %temp_24_2
+         %20 = OpLabel ; Block$0
+               OpBranch %13
+
+
+         %19 = OpLabel ; Block$4
+  %temp_19_0 = OpLoad %4 %output_index
+  %temp_19_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_19_0
+               OpStore %temp_19_1 %constant_19
+  %temp_19_2 = OpIAdd %4 %temp_19_0 %constant_2
+               OpStore %output_index %temp_19_2
+               OpReturn
+
+
+         %24 = OpLabel ; Block$1
+               OpBranch %15
+
+
+         %13 = OpLabel ; SelectionHeader$4
+               OpSelectionMerge %14 None
+               OpBranchConditional %5 %21 %14
+
+
+         %21 = OpLabel ; Block$10
                OpBranch %14
 
 
-         %14 = OpLabel ; StructurallyReachableBlock$8
-  %temp_14_0 = OpLoad %4 %output_index
-  %temp_14_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_14_0
-               OpStore %temp_14_1 %constant_14
-  %temp_14_2 = OpIAdd %4 %temp_14_0 %constant_1
-               OpStore %output_index %temp_14_2
-               OpBranch %11
+         %14 = OpLabel ; Block$9
+               OpBranch %15
 
 
-         %11 = OpLabel ; StructurallyReachableBlock$7
-  %temp_11_0 = OpLoad %4 %output_index
-  %temp_11_1 = OpAccessChain %storage_buffer_int_ptr %output_variable %constant_0 %temp_11_0
-               OpStore %temp_11_1 %constant_11
-  %temp_11_2 = OpIAdd %4 %temp_11_0 %constant_1
-               OpStore %output_index %temp_11_2
+         %15 = OpLabel ; Block$8
+               OpBranch %16
+
+
+         %16 = OpLabel ; Block$7
                OpBranch %9
 
                OpFunctionEnd
 
  END
 
- BUFFER directions_12 DATA_TYPE uint32 STD430 DATA 1 0 END
- BUFFER directions_13 DATA_TYPE uint32 STD430 DATA 6 END
- BUFFER directions_16 DATA_TYPE uint32 STD430 DATA 1 END
- BUFFER directions_22 DATA_TYPE uint32 STD430 DATA 1 END
  BUFFER directions_10 DATA_TYPE uint32 STD430 DATA 0 END
+ BUFFER directions_10_index DATA_TYPE uint32 STD430 DATA 0 END
+ BUFFER directions_17 DATA_TYPE uint32 STD430 DATA 0 END
+ BUFFER directions_17_index DATA_TYPE uint32 STD430 DATA 0 END
 
- BUFFER output DATA_TYPE uint32 STD430 SIZE 16 FILL 0
+ BUFFER output DATA_TYPE uint32 STD430 SIZE 7 FILL 0
+ BUFFER output_index DATA_TYPE uint32 STD430 DATA 0 END
 
  PIPELINE compute pipeline
    ATTACH compute_shader
-
-   BIND BUFFER directions_12 AS storage DESCRIPTOR_SET 0 BINDING 1
-   BIND BUFFER directions_13 AS storage DESCRIPTOR_SET 0 BINDING 2
-   BIND BUFFER directions_16 AS storage DESCRIPTOR_SET 0 BINDING 3
-   BIND BUFFER directions_22 AS storage DESCRIPTOR_SET 0 BINDING 4
    BIND BUFFER directions_10 AS storage DESCRIPTOR_SET 0 BINDING 0
+   BIND BUFFER directions_10_index AS storage DESCRIPTOR_SET 0 BINDING 1
+   BIND BUFFER directions_17 AS storage DESCRIPTOR_SET 0 BINDING 2
+   BIND BUFFER directions_17_index AS storage DESCRIPTOR_SET 0 BINDING 3
 
-   BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING 5
+   BIND BUFFER output AS storage DESCRIPTOR_SET 0 BINDING 4
+   BIND BUFFER output_index AS storage DESCRIPTOR_SET 0 BINDING 5
+
  END
-
  RUN pipeline 1 1 1
 
- EXPECT directions_12 IDX 0 EQ 1 0
- EXPECT directions_13 IDX 0 EQ 6
- EXPECT directions_16 IDX 0 EQ 1
- EXPECT directions_22 IDX 0 EQ 1
  EXPECT directions_10 IDX 0 EQ 0
- EXPECT output IDX 0 EQ 8 9 12 13 16 23 22 25 24 14 11 9 12 10 19 17
+ EXPECT directions_10_index IDX 0 EQ 0
+ EXPECT directions_17 IDX 0 EQ 0
+ EXPECT directions_17_index IDX 0 EQ 0
+ EXPECT output IDX 0 EQ 8 9 10 17 18 19 0
+ EXPECT output_index IDX 0 EQ 0
 ```
 # fleshing_runner.py
 
