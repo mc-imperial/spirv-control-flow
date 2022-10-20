@@ -8,21 +8,22 @@
 =======================================================================
 """
 
-import sys, getopt
 import platform
-import argparse
 import filecmp
 import os, subprocess
 import re
 import csv
 import time
+import signal
+import sys
 from pathlib import Path
 from sys import platform as _platform
-from subprocess import Popen,PIPE
+from subprocess import Popen,PIPE, TimeoutExpired
 from argparse import ArgumentParser, SUPPRESS
 
 
 CURR_DIR = os.path.dirname(__file__)
+DEFAULT_TIMEOUT_SECS = 300
 
 # program description
 t = 'This tool checks whether the control flow graph is deemed feasible.'
@@ -68,6 +69,7 @@ optional.add_argument('-s','--solver',
                     )
 
 optional.add_argument("--block-limit", required=False, type=int, default=100, help="Any .als files containing more blocks than this limit will be skipped.")
+optional.add_argument("--cfg-timeout", required=False, type=int, default=DEFAULT_TIMEOUT_SECS, help="Timeout in seconds after which the processing of a CFG will be skipped.")
 
 args = parser.parse_args()
 
@@ -202,6 +204,7 @@ def checkCFG():
     infeasible = ''
     skipped = ''
     errors = ''
+    timed_out_files = ''
     out_file = open(os.path.join(args.path_to_XML_Output_Folder, "outputs.txt"),"w+")
     # create csv and write header
     out_csv = open(os.path.join(args.path_to_XML_Output_Folder, "out.csv"), "w")
@@ -242,26 +245,25 @@ def checkCFG():
         cmd = 'cd '+args.path_to_AlloyStar+' && ' \
               'mkdir -p '+os.path.join(args.path_to_XML_Output_Folder, basefilename)+' && ' \
               'java -Xmx'+str(args.memory)+'g -Djava.library.path='+get_processor_info()+' -Dout='+os.path.join(args.path_to_XML_Output_Folder, basefilename)+' -Dquiet=false -Dsolver='+args.solver+' -Dhigherorder=true -Dcmd=0 edu/mit/csail/sdg/alloy4whole/RunAlloy '+path_to_als
-        tmp = Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, text=True)
-
+        
         global t_OoM
         t_OoM = 0
         start_time = time.time()
-
-        # Getting realtime output
-        while True:
-            line_output = tmp.stdout.readline()
-            if line_output == '' and tmp.poll() is not None:
-                break
-            if line_output and line_output.strip() != '':
-                print(line_output.strip())
-                output += str(line_output)
-        
-        if tmp.returncode != 0:
-            error_str = "".join(tmp.stderr.readlines())
-            print(error_str)
-            output += error_str
+        try:
+            proc = Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, text=True, start_new_session=True)
+            stdout, stderr = proc.communicate(timeout=args.cfg_timeout)
+        except TimeoutExpired:
+            print(f'Timeout for {cmd} ({args.cfg_timeout}s) expired', file=sys.stderr)
+            print('Terminating the whole process group...', file=sys.stderr)
+            timed_out_files += path_to_als + "\n"
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            continue
+     
+        print(stdout)
+        if proc.returncode != 0:
+            print(stderr)
             errors += str(path_to_als) + '\n'
+            continue
 
         t_OoM = round(time.time() - start_time, 2)
         print('Elapsed time: ' + str(t_OoM) + 's')
@@ -308,6 +310,7 @@ def checkCFG():
     number_infeasible = infeasible.count('\n')
     number_skipped = skipped.count("\n")
     number_errors = errors.count("\n")
+    number_timed_out = timed_out_files.count("\n")
 
     hurrah = """
                                       \O/
@@ -316,23 +319,21 @@ def checkCFG():
                                      _/ \_
                                             """
     bord = '##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##=##\n\n'
-    final = f'{number_als_files} GRAPHS WERE PROCESSED. {number_errors} GRAPHS HAD ERRORS. {number_als_files - number_skipped - number_errors} GRAPHS WERE CHECKED. {number_infeasible} ARE INFEASIBLE. {number_skipped} WERE SKIPPED.'
+    final = f'{number_als_files} GRAPHS WERE PROCESSED. {number_errors} GRAPHS HAD ERRORS. {number_als_files - number_skipped - number_errors - number_timed_out} GRAPHS WERE CHECKED. {number_infeasible} ARE INFEASIBLE. {number_skipped} WERE SKIPPED. {number_timed_out} TIMED OUT.'
     if number_errors > 0:
         final += f'\nTHE {number_errors} GRAPHS BELOW HAVE ERRORS:\n {errors}'
     if number_infeasible > 0:
         final += f'\nTHE {number_infeasible} GRAPHS BELOW ARE DEEMED INFEASIBLE:\n {infeasible}'
     if number_skipped > 0:
         final += f'\nTHE {number_skipped} GRAPHS BELOW WERE SKIPPED:\n{skipped}'
+    if number_timed_out > 0:
+        final += f'\nTHE {number_timed_out} GRAPHS BELOW TIMED OUT:\n{timed_out_files}'
     
     final += '\nALL OUTPUTS SAVED IN '+str(os.path.join(args.path_to_XML_Output_Folder, "outputs.txt"))+'\n\n'
     _final = '\n\n\n'+hurrah+'\n'+bord+final+bord
     print(_final)
     out_file.write(_final)
     out_file.close()
-#print(os.name)
-#print( platform.machine() )
-#print(_platform)
-#print(CURR_DIR)
 
 
 def main():
