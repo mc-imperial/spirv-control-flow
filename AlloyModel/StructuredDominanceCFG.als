@@ -126,6 +126,9 @@ fun branchSet :  Block -> Block
 }
 
 
+let stucturalBranch = branchSet + merge + continue
+
+
 /**
   *  exitBlocks models the set of "Termination Instruction" used to terminate blocks
   *  (The Khronos Group, 2021, p.20)
@@ -142,7 +145,7 @@ fun exitBlocks :  Block
   */
 fun MetaReachableFromWithoutPassingThrough[from,through:  StructurallyReachableBlock ] : set  Block  
 {
-	from.*(( StructurallyReachableBlock -through) <: (branchSet + merge + continue) ) - through
+	from.*(( StructurallyReachableBlock -through) <: stucturalBranch ) - through
 }
 
 
@@ -159,7 +162,7 @@ fun MetaReachableFromWithoutPassingThrough[from,through:  StructurallyReachableB
   */
 fun structurallyDominates :   Block  ->  Block  
 {
-	{ A, B:  StructurallyReachableBlock   |  B in A.*(branchSet + merge + continue) and B not in MetaReachableFromWithoutPassingThrough[EntryBlock,A] }
+	{ A, B:  StructurallyReachableBlock   |  B in A.*stucturalBranch and B not in MetaReachableFromWithoutPassingThrough[EntryBlock,A] }
 }
 
 
@@ -187,7 +190,7 @@ fun strictlyStructurallyDominates :  Block  ->  Block
   */
 fun structurallyPostDominates :   Block  ->  Block  
 {
-    { B, A:  Block  | B in A.*(branchSet + merge + continue) and no exitBlocks & MetaReachableFromWithoutPassingThrough[A,B] }
+    { B, A:  Block  | B in A.*stucturalBranch and no exitBlocks & MetaReachableFromWithoutPassingThrough[A,B] }
 }
 
 
@@ -481,7 +484,7 @@ fun exitEdge :  StructurallyReachableBlock  ->  StructurallyReachableBlock  {
   */
 fact 
 {
-	StructurallyReachableBlock  = EntryBlock.*(branchSet + merge + continue)
+	StructurallyReachableBlock  = EntryBlock.*stucturalBranch
 }
 
 
@@ -926,7 +929,7 @@ pred ExitingTheConstruct
 
 pred StructurallyAcyclic 
 {
-	no ^(StructurallyReachableBlock <: (branchSet + merge + continue - backEdge)) & iden -- the result is structurally acyclic after removing self-loops and back edges
+	no ^(StructurallyReachableBlock <: (stucturalBranch - backEdge)) & iden -- the result is structurally acyclic after removing self-loops and back edges
 }
 
 
@@ -939,7 +942,18 @@ pred StructurallyAcyclic
   */
 pred BranchToContinue 
 {
-	{ all l: (LoopHeader & StructurallyReachableBlock) | l != l.continue => no (StructurallyReachableBlock - loopConstruct[l]) <: (branchSet - backEdge) :> l.continue }
+	all l: (LoopHeader & StructurallyReachableBlock) | l != l.continue => no (StructurallyReachableBlock - loopConstruct[l]) <: (branchSet - backEdge) :> l.continue 
+}
+
+
+/**
+  * If B is a loop header and B has two successors then 
+  * at least one of the successors must be the loop merge block or 
+  * the loop continue target
+  */
+pred AvoidConditionalBrancOnLoopHeaderThatDoesNotTargetAMergeOrContinue 
+{
+	all l: (LoopHeader & StructurallyReachableBlock) | #(l<:branch) = 2 => some l.((continue + merge)& branchSet) 
 }
 
 
@@ -974,6 +988,7 @@ pred Valid {
    ExitingTheConstruct 
 	StructurallyAcyclic
    BranchToContinue
+	AvoidConditionalBrancOnLoopHeaderThatDoesNotTargetAMergeOrContinue
 }
 
 
@@ -986,14 +1001,14 @@ pred loop_example {
  * In structural semantics, however, this example is deemed valid.
  */
   some disj b1, b2, b3, b4 :  StructurallyReachableBlock  {
-    EntryBlock = b1
+    EntryBlock  = b1
     HeaderBlock = b2
-    LoopHeader = b2
+    LoopHeader  = b2
     SwitchBlock = none
-    branch = (b1 -> (0 -> b2))
-         + (b2 -> (0 -> b3))
-         + (b4 -> (0 -> b2))
-    merge = (b2 -> b3)
+    branch   = (b1 -> (0 -> b2))
+             + (b2 -> (0 -> b3))
+             + (b4 -> (0 -> b2))
+    merge    = (b2 -> b3)
     continue = (b2 -> b4)
   }
 }
@@ -1007,16 +1022,16 @@ pred invalid_example {
  * is contained in the continue construct but b4 (the merge of b3) is not.
  */
   some disj b1, b2, b3, b4, b5 :  StructurallyReachableBlock  {
-    EntryBlock = b1
+    EntryBlock  = b1
     HeaderBlock = b2 + b3
-    LoopHeader = b2
+    LoopHeader  = b2
     SwitchBlock = none
-    branch = (b1 -> (0 -> b2))
-         + (b2 -> (0 -> b3))
-         + (b3 -> ((0 -> b2) + (1 -> b5)))
-         + (b4 -> (0 -> b5))
-    merge = (b2 -> b5)
-         + (b3 -> b4)
+    branch   = (b1 -> (0 -> b2))
+             + (b2 -> (0 -> b3))
+             + (b3 -> ((0 -> b2) + (1 -> b5)))
+             + (b4 -> (0 -> b5))
+    merge    = (b2 -> b5)
+             + (b3 -> b4)
     continue = (b2 -> b3)
   }
 }
@@ -1031,11 +1046,12 @@ pred Vibrant
  * B is the only structural-predecessor of C
  */
 {
-	all disj A,B,C: Block | not (  #(A. (branchSet + merge + continue) - A) = 1 and B in A.(branchSet + merge + continue)  and 
-											 #(B.~(branchSet + merge + continue) - B) = 1 and A in B.~(branchSet + merge + continue) and
-											 #(B. (branchSet + merge + continue) - B) = 1 and C in B. (branchSet + merge + continue) and 
-											 #(C.~(branchSet + merge + continue) - C) = 1 and B in C.~(branchSet + merge + continue) 
+	all disj A,B,C: Block | not (   B = A. stucturalBranch - A and
+											  A = B.~stucturalBranch - B and
+											  C = B. stucturalBranch - B and
+											  B = C.~stucturalBranch - C
 										  )
+										 
 	all sw: SwitchBlock | #(sw<:branch) <= 3
 
 	all  a,b: Block | #(a<:branch:>b) < 2
@@ -1059,3 +1075,4 @@ run {  Valid && Vibrant && MoreInteresting  && Block = StructurallyReachableBloc
 
 -- the following command will generate invalid instances of the model that violate one of the constraint
 run { UniqueMergeBlock && HeaderBlockStrictlyStructurallyDominatesItsMergeBlock && not BackEdgesBranchToLoopHeader && OneBackEdgeBranchingToLoopHeader && LoopHeaderStructurallyDominatesContinueTarget && ContinueTargetStructurallyDominatesBackEdge && BackEdgeStructurallyPostDominatesContinueTarget && not ConstructContainsAnotherHeader && ValidBreakBlock && ValidContinueBlock && ValidBranchToOuterOpSwitchMerge && InvalidBranchToOuterOpSwitchMerge && NobranchBetweenCaseConstructs && BranchesBetweenConstructs && OpSwitchBlockDominatesAllItsCases && AtMostOneBranchToAnotherCaseConstruct && CaseConstructBranchedToByAtMostOneOther && OrderOfOpSwitchTargetOperands && EntryBlockIsNotTargeted && OpLoopMergeSecondToLast && OpSelectionMergeSecondToLast && OutDegree && MultipleOutEdges && ExitingTheConstruct && StructurallyAcyclic && BranchToContinue &&  Vibrant && MoreInteresting && Block = StructurallyReachableBlock  } for exactly 8 Block
+
